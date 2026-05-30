@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { Badge, Button, Card } from "@/components/ui";
-import { Match, Player, ServingTeam, getMatchSummary } from "@/lib/types";
+import { Match, Player, ServingTeam, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
 const POSITION_LABELS = ["P1 (Back Right)", "P2 (Front Right)", "P3 (Front Center)", "P4 (Front Left)", "P5 (Back Left)", "P6 (Back Center)"];
 
@@ -370,6 +370,7 @@ export default function MatchScorerPage() {
   }
 
   const needsRotation = match.status === "scheduled" || match.status === "setup";
+  const when = formatMatchDateTime(match.scheduledAt);
 
   return (
     <>
@@ -382,6 +383,17 @@ export default function MatchScorerPage() {
           <h1 className="mt-2 text-2xl font-bold text-slate-900">
             {match.homeTeam?.name} vs {match.awayTeam?.name}
           </h1>
+          {(when || match.location) && (
+            <div className="mt-2 space-y-1 text-sm text-slate-600">
+              {when && <p>{when}</p>}
+              {match.location && (
+                <p>
+                  {match.location.name}
+                  {match.location.address ? ` · ${match.location.address}` : ""}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {needsRotation && match.status === "scheduled" ? (

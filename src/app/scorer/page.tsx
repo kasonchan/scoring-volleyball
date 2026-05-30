@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { Match, getMatchSummary } from "@/lib/types";
+import { Match, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
 export default function ScorerPage() {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -50,6 +50,7 @@ export default function ScorerPage() {
           <div className="space-y-3">
             {matches.map((match) => {
               const summary = getMatchSummary(match);
+              const when = formatMatchDateTime(match.scheduledAt);
               return (
                 <Link key={match.id} href={`/scorer/${match.id}`} className="block group">
                   <Card className="transition-shadow hover:shadow-md">
@@ -66,6 +67,12 @@ export default function ScorerPage() {
                             </span>
                           )}
                         </div>
+                        {(when || match.location) && (
+                          <div className="mt-2 space-y-1 text-sm text-slate-600">
+                            {when && <p>{when}</p>}
+                            {match.location && <p>{match.location.name}</p>}
+                          </div>
+                        )}
                       </div>
                       <span className="text-orange-500 font-medium text-sm">Score match →</span>
                     </div>
