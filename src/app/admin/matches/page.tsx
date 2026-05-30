@@ -55,6 +55,18 @@ export default function MatchesPage() {
     }
   }
 
+  async function handleDelete(match: Match) {
+    const label = `${match.homeTeam?.name ?? "Home"} vs ${match.awayTeam?.name ?? "Away"}`;
+    if (!confirm(`Delete match "${label}"? This cannot be undone.`)) return;
+    const res = await fetch(`/api/matches/${match.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error ?? "Failed to delete match");
+      return;
+    }
+    setMatches((prev) => prev.filter((m) => m.id !== match.id));
+  }
+
   function statusBadge(status: Match["status"]) {
     const map: Record<Match["status"], { label: string; color: string }> = {
       scheduled: { label: "Scheduled", color: "slate" },
@@ -134,6 +146,12 @@ export default function MatchesPage() {
                     <Link href={`/scorer/${match.id}`}>
                       <Button variant="secondary">Open in Scorer</Button>
                     </Link>
+                    <Button
+                      variant="danger"
+                      onClick={() => handleDelete(match)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </Card>
               );

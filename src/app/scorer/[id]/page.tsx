@@ -182,7 +182,7 @@ function RotationSetup({
       )}
 
       <Button className="mt-6 w-full sm:w-auto" onClick={handleSubmit} disabled={loading}>
-        {loading ? "Starting..." : "Start Scoring"}
+        {loading ? "Starting..." : "Start Set"}
       </Button>
     </Card>
   );

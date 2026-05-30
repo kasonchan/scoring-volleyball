@@ -267,6 +267,12 @@ export function updateMatch(id: string, input: UpdateMatchInput): Match {
   return getMatch(id)!;
 }
 
+export function deleteMatch(id: string): boolean {
+  const db = getDb();
+  const result = db.prepare("DELETE FROM matches WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
 export function setMatchRotation(matchId: string, input: SetRotationInput): Match {
   const db = getDb();
   const match = getMatch(matchId);

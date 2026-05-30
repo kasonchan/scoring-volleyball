@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMatch, updateMatch } from "@/lib/queries";
+import { deleteMatch, getMatch, updateMatch } from "@/lib/queries";
 import { UpdateMatchInput } from "@/lib/types";
 
 export async function GET(
@@ -32,4 +32,16 @@ export async function PUT(
       { status: 400 }
     );
   }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const deleted = deleteMatch(id);
+  if (!deleted) {
+    return NextResponse.json({ error: "Match not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }
