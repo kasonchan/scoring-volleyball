@@ -153,6 +153,24 @@ function RotationSetup({
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
 
+function SetHistory({ match }: { match: Match }) {
+  const completedSets = match.sets?.filter((s) => s.status === "completed") ?? [];
+  if (completedSets.length === 0) return null;
+
+  return (
+    <div className="mt-4 text-center">
+      <h3 className="mb-2 text-sm font-medium text-slate-500">Set History</h3>
+      <div className="flex flex-wrap justify-center gap-2">
+        {completedSets.map((s) => (
+          <div key={s.id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
+            Set {s.setNumber}: {s.homeScore} – {s.awayScore}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CourtRotation({
   teamName,
   rotations,
@@ -349,21 +367,6 @@ function LiveScoring({
           side="right"
         />
       </div>
-
-      {match.sets && match.sets.filter((s) => s.status === "completed").length > 0 && (
-        <Card>
-          <h3 className="mb-3 font-semibold text-slate-900">Set History</h3>
-          <div className="flex flex-wrap gap-3">
-            {match.sets
-              .filter((s) => s.status === "completed")
-              .map((s) => (
-                <div key={s.id} className="rounded-lg bg-slate-50 px-4 py-2 text-sm">
-                  Set {s.setNumber}: {s.homeScore} – {s.awayScore}
-                </div>
-              ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
@@ -442,6 +445,7 @@ export default function MatchScorerPage() {
           )}
           <div className="mt-2 text-center">
             <CurrentTimeClock />
+            <SetHistory match={match} />
           </div>
         </div>
 
