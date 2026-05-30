@@ -87,6 +87,16 @@ function initSchema(database: Database.Database) {
       FOREIGN KEY (player_out_id) REFERENCES players(id),
       FOREIGN KEY (player_in_id) REFERENCES players(id)
     );
+
+    CREATE TABLE IF NOT EXISTS timeouts (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
   `);
   migrateSchema(database);
 }
@@ -133,6 +143,18 @@ function migrateSchema(database: Database.Database) {
       FOREIGN KEY (team_id) REFERENCES teams(id),
       FOREIGN KEY (player_out_id) REFERENCES players(id),
       FOREIGN KEY (player_in_id) REFERENCES players(id)
+    )
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS timeouts (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
     )
   `);
 }

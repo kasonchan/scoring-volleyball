@@ -59,6 +59,17 @@ export interface Substitution {
   playerIn?: Player;
 }
 
+export interface Timeout {
+  id: string;
+  matchId: string;
+  teamId: string;
+  setNumber: number;
+  createdAt: string;
+}
+
+export const MAX_TIMEOUTS_PER_SET = 2;
+export const TIMEOUT_SECONDS = 30;
+
 export interface Match {
   id: string;
   homeTeamId: string;
@@ -75,6 +86,7 @@ export interface Match {
   sets?: MatchSet[];
   rotations?: RotationEntry[];
   substitutions?: Substitution[];
+  timeouts?: Timeout[];
 }
 
 export interface CreateTeamInput {
@@ -115,6 +127,10 @@ export interface SubstituteInput {
   position: number;
   playerInId: string;
   gameCaptainId?: string | null;
+}
+
+export interface TimeoutInput {
+  team: ServingTeam;
 }
 
 export interface Location {

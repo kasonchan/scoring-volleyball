@@ -12,7 +12,7 @@ import {
   needsGameCaptainAssignment,
 } from "@/lib/captains";
 import { getAllowedSubstitutesIn } from "@/lib/substitutions";
-import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, formatMatchDateTime, getMatchSummary } from "@/lib/types";
+import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, formatMatchDateTime, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
 
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
@@ -357,7 +357,10 @@ function CourtRotation({
   players,
   gameCaptainId,
   substitutions,
+  timeouts,
   onOpenSubstitute,
+  onTimeout,
+  timeoutLoading,
 }: {
   teamName: string;
   rotations: Match["rotations"];
@@ -367,7 +370,10 @@ function CourtRotation({
   players: Player[];
   gameCaptainId: string | null;
   substitutions: Substitution[];
+  timeouts: Timeout[];
   onOpenSubstitute?: () => void;
+  onTimeout?: () => void;
+  timeoutLoading?: boolean;
 }) {
   const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
   const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
@@ -379,20 +385,7 @@ function CourtRotation({
     <div className={`rounded-xl border p-4 ${bg}`}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className={`font-semibold ${accent}`}>{teamName}</h3>
-        <div className="flex items-center gap-2">
-          {onOpenSubstitute && (
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onOpenSubstitute}
-              className="text-xs"
-              title="Substitutions this set"
-            >
-              Substitute ({substitutions.length})
-            </Button>
-          )}
-          {serving && <Badge color="orange">Serving</Badge>}
-        </div>
+        {serving && <Badge color="orange">Serving</Badge>}
       </div>
       <div className="grid grid-cols-2 gap-2 text-center text-sm">
         {positions.map((pos) => {
@@ -429,6 +422,33 @@ function CourtRotation({
           No Team Captain or Game Captain on court. Substitute to assign a Game Captain.
         </p>
       )}
+      {(onTimeout || onOpenSubstitute) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {onTimeout && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={onTimeout}
+              disabled={timeoutLoading || timeouts.length >= MAX_TIMEOUTS_PER_SET}
+              className="text-xs"
+              title={`Timeouts this set (max ${MAX_TIMEOUTS_PER_SET})`}
+            >
+              Timeout ({timeouts.length})
+            </Button>
+          )}
+          {onOpenSubstitute && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={onOpenSubstitute}
+              className="text-xs"
+              title="Substitutions this set"
+            >
+              Substitute ({substitutions.length})
+            </Button>
+          )}
+        </div>
+      )}
       <TeamRosterList
         players={players}
         color={color}
@@ -453,6 +473,51 @@ function CourtRotation({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TimeoutTimerModal({
+  teamName,
+  onClose,
+}: {
+  teamName: string;
+  onClose: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(TIMEOUT_SECONDS);
+
+  useEffect(() => {
+    const endAt = Date.now() + TIMEOUT_SECONDS * 1000;
+    const intervalId = setInterval(() => {
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left <= 0) clearInterval(intervalId);
+    }, 200);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const done = secondsLeft <= 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-sm text-center">
+        <h3 className="text-lg font-semibold text-slate-900">Timeout — {teamName}</h3>
+        <p className="mt-1 text-sm text-slate-600">{TIMEOUT_SECONDS}-second timeout</p>
+        <p
+          className={`mt-6 font-mono text-6xl font-bold tabular-nums ${
+            done ? "text-emerald-600" : "text-orange-600"
+          }`}
+        >
+          {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
+          {String(secondsLeft % 60).padStart(2, "0")}
+        </p>
+        <p className="mt-2 text-sm text-slate-500">{done ? "Timeout complete" : "Time remaining"}</p>
+        <div className="mt-6">
+          <Button variant="secondary" onClick={onClose}>
+            {done ? "Close" : "Dismiss"}
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -724,6 +789,8 @@ function LiveScoring({
   onSwitchCourt: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [timeoutLoadingTeam, setTimeoutLoadingTeam] = useState<ServingTeam | null>(null);
+  const [timeoutModal, setTimeoutModal] = useState<{ teamName: string } | null>(null);
   const [subModal, setSubModal] = useState<{
     team: ServingTeam;
     teamId: string;
@@ -847,6 +914,25 @@ function LiveScoring({
     });
   }
 
+  async function callTeamTimeout(team: ServingTeam, teamName: string) {
+    setTimeoutLoadingTeam(team);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/timeout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate(data);
+      setTimeoutModal({ teamName });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to call timeout");
+    } finally {
+      setTimeoutLoadingTeam(null);
+    }
+  }
+
   if (match.status === "completed") {
     return (
       <Card className="text-center">
@@ -917,6 +1003,12 @@ function LiveScoring({
 
   return (
     <div className="space-y-6">
+      {timeoutModal && (
+        <TimeoutTimerModal
+          teamName={timeoutModal.teamName}
+          onClose={() => setTimeoutModal(null)}
+        />
+      )}
       {subModal && (
         <SubstitutionModal
           teamName={subModal.teamName}
@@ -993,6 +1085,10 @@ function LiveScoring({
             match.substitutions?.filter(
               (s) => s.teamId === teamId && s.setNumber === match.currentSet
             ) ?? [];
+          const teamTimeouts =
+            match.timeouts?.filter(
+              (t) => t.teamId === teamId && t.setNumber === match.currentSet
+            ) ?? [];
 
           return (
             <CourtRotation
@@ -1005,6 +1101,9 @@ function LiveScoring({
               players={players}
               gameCaptainId={gameCaptainId}
               substitutions={teamSubstitutions}
+              timeouts={teamTimeouts}
+              timeoutLoading={timeoutLoadingTeam === team}
+              onTimeout={() => callTeamTimeout(team, teamName)}
               onOpenSubstitute={() =>
                 openSubstitution(
                   team,

@@ -16,7 +16,10 @@ import {
   SetRotationInput,
   SubstituteInput,
   Substitution,
+  Timeout,
+  TimeoutInput,
   Team,
+  MAX_TIMEOUTS_PER_SET,
   rotateClockwise,
 } from "./types";
 import {
@@ -279,6 +282,7 @@ function enrichMatch(row: Record<string, unknown>): Match {
   match.sets = getMatchSets(match.id);
   match.rotations = getMatchRotations(match.id, match.currentSet);
   match.substitutions = getMatchSubstitutions(match.id, match.currentSet);
+  match.timeouts = getMatchTimeouts(match.id, match.currentSet);
   return match;
 }
 
@@ -367,6 +371,26 @@ function getMatchSubstitutions(matchId: string, setNumber: number): Substitution
     };
     return sub;
   });
+}
+
+function rowToTimeout(row: Record<string, unknown>): Timeout {
+  return {
+    id: row.id as string,
+    matchId: row.match_id as string,
+    teamId: row.team_id as string,
+    setNumber: row.set_number as number,
+    createdAt: row.created_at as string,
+  };
+}
+
+function getMatchTimeouts(matchId: string, setNumber: number): Timeout[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT * FROM timeouts WHERE match_id = ? AND set_number = ? ORDER BY created_at"
+    )
+    .all(matchId, setNumber) as Record<string, unknown>[];
+  return rows.map(rowToTimeout);
 }
 
 export function createMatch(input: CreateMatchInput): Match {
@@ -546,6 +570,27 @@ export function substitutePlayer(matchId: string, input: SubstituteInput): Match
   } else {
     updateSetGameCaptains(matchId, setNumber, currentSet.homeGameCaptainId ?? null, nextGameCaptainId);
   }
+
+  return getMatch(matchId)!;
+}
+
+export function callTimeout(matchId: string, input: TimeoutInput): Match {
+  const db = getDb();
+  const match = getMatch(matchId);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "in_progress") throw new Error("Match is not in progress");
+
+  const setNumber = match.currentSet;
+  const teamId = input.team === "home" ? match.homeTeamId : match.awayTeamId;
+  const teamTimeouts = getMatchTimeouts(matchId, setNumber).filter((t) => t.teamId === teamId);
+
+  if (teamTimeouts.length >= MAX_TIMEOUTS_PER_SET) {
+    throw new Error(`Maximum ${MAX_TIMEOUTS_PER_SET} timeouts per set`);
+  }
+
+  db.prepare(
+    "INSERT INTO timeouts (id, match_id, team_id, set_number) VALUES (?, ?, ?, ?)"
+  ).run(uuidv4(), matchId, teamId, setNumber);
 
   return getMatch(matchId)!;
 }
