@@ -15,10 +15,7 @@ import {
   ServingTeam,
   SetRotationInput,
   Team,
-  getSetTargetScore,
-  isSetWon,
   rotateClockwise,
-  SETS_TO_WIN,
 } from "./types";
 
 function rowToPlayer(row: Record<string, unknown>): Player {
@@ -348,34 +345,44 @@ export function scorePoint(matchId: string, team: ServingTeam): Match {
 
   db.prepare("UPDATE matches SET serving_team = ? WHERE id = ?").run(servingTeam, matchId);
 
-  const winner = isSetWon(homeScore, awayScore, setNumber);
-  if (winner) {
-    db.prepare(
-      "UPDATE match_sets SET status = 'completed' WHERE match_id = ? AND set_number = ?"
-    ).run(matchId, setNumber);
+  return getMatch(matchId)!;
+}
 
-    const completedSets = db
-      .prepare(
-        "SELECT * FROM match_sets WHERE match_id = ? AND status = 'completed'"
-      )
-      .all(matchId) as Record<string, unknown>[];
+export function startNextSet(matchId: string): Match {
+  const db = getDb();
+  const match = getMatch(matchId);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "in_progress") throw new Error("Match is not in progress");
 
-    let homeSetsWon = 0;
-    let awaySetsWon = 0;
-    for (const s of completedSets) {
-      if ((s.home_score as number) > (s.away_score as number)) homeSetsWon++;
-      else awaySetsWon++;
-    }
+  const setNumber = match.currentSet;
+  db.prepare(
+    "UPDATE match_sets SET status = 'completed' WHERE match_id = ? AND set_number = ?"
+  ).run(matchId, setNumber);
 
-    if (homeSetsWon >= SETS_TO_WIN || awaySetsWon >= SETS_TO_WIN) {
-      db.prepare("UPDATE matches SET status = 'completed' WHERE id = ?").run(matchId);
-    } else {
-      const nextSet = setNumber + 1;
-      db.prepare("UPDATE matches SET current_set = ? WHERE id = ?").run(nextSet, matchId);
-      db.prepare("UPDATE matches SET status = 'setup' WHERE id = ?").run(matchId);
-    }
+  const nextSet = setNumber + 1;
+  db.prepare("UPDATE matches SET current_set = ?, status = 'setup' WHERE id = ?").run(
+    nextSet,
+    matchId
+  );
+
+  return getMatch(matchId)!;
+}
+
+export function endMatch(matchId: string): Match {
+  const db = getDb();
+  const match = getMatch(matchId);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "in_progress" && match.status !== "setup") {
+    throw new Error("Match cannot be ended");
   }
 
+  if (match.status === "in_progress") {
+    db.prepare(
+      "UPDATE match_sets SET status = 'completed' WHERE match_id = ? AND set_number = ?"
+    ).run(matchId, match.currentSet);
+  }
+
+  db.prepare("UPDATE matches SET status = 'completed' WHERE id = ?").run(matchId);
   return getMatch(matchId)!;
 }
 

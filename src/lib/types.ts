@@ -103,22 +103,17 @@ export interface LocationInput {
   address: string;
 }
 
-export const SET_WIN_SCORE = [25, 25, 25, 25, 15] as const;
-export const SETS_TO_WIN = 3;
-
-export function getSetTargetScore(setNumber: number): number {
-  return SET_WIN_SCORE[Math.min(setNumber - 1, 4)];
-}
-
-export function isSetWon(
-  homeScore: number,
-  awayScore: number,
-  setNumber: number
-): "home" | "away" | null {
-  const target = getSetTargetScore(setNumber);
-  if (homeScore >= target && homeScore - awayScore >= 2) return "home";
-  if (awayScore >= target && awayScore - homeScore >= 2) return "away";
-  return null;
+export function getMatchSummary(match: Match) {
+  const homeSets =
+    match.sets?.filter((s) => s.status === "completed" && s.homeScore > s.awayScore).length ?? 0;
+  const awaySets =
+    match.sets?.filter((s) => s.status === "completed" && s.awayScore > s.homeScore).length ?? 0;
+  const currentSet = match.sets?.find((s) => s.setNumber === match.currentSet);
+  return {
+    homeSets,
+    awaySets,
+    currentSet,
+  };
 }
 
 export function rotateClockwise(rotation: string[]): string[] {
@@ -148,18 +143,4 @@ export function fromDatetimeLocalValue(value: string): string | null {
   const d = new Date(value);
   if (isNaN(d.getTime())) return null;
   return d.toISOString();
-}
-
-export function getMatchSummary(match: Match) {
-  const homeSets =
-    match.sets?.filter((s) => s.status === "completed" && s.homeScore > s.awayScore).length ?? 0;
-  const awaySets =
-    match.sets?.filter((s) => s.status === "completed" && s.awayScore > s.homeScore).length ?? 0;
-  const currentSet = match.sets?.find((s) => s.setNumber === match.currentSet);
-  return {
-    homeSets,
-    awaySets,
-    currentSet,
-    targetScore: getSetTargetScore(match.currentSet),
-  };
 }

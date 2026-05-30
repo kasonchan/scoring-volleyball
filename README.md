@@ -15,7 +15,7 @@ A web app for managing volleyball teams, scheduling matches, and scoring live ga
 - **Select matches** created by admins
 - **Set starting rotation** — assign 6 players to court positions (P1–P6) for each team
 - **Live scoring** — tap to add points; automatic side-out rotation when the receiving team wins a rally
-- **Set & match tracking** — best-of-5 sets (25 points, 15 for set 5, win by 2)
+- **Set tracking** — scorers add sets manually and score without a fixed point limit
 
 ## Getting Started
 

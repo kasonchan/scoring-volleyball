@@ -231,6 +231,36 @@ function LiveScoring({
     }
   }
 
+  async function addNextSet() {
+    if (!confirm(`End Set ${match.currentSet} and start Set ${match.currentSet + 1}?`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/next-set`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to add next set");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function finishMatch() {
+    if (!confirm("End this match?")) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/end`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to end match");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (match.status === "completed") {
     return (
       <Card className="text-center">
@@ -258,9 +288,7 @@ function LiveScoring({
     <div className="space-y-6">
       <Card>
         <div className="text-center">
-          <p className="text-sm font-medium text-slate-500">
-            Set {match.currentSet} · First to {summary.targetScore}
-          </p>
+          <p className="text-sm font-medium text-slate-500">Set {match.currentSet}</p>
           <div className="mt-4 flex items-center justify-center gap-6">
             <div className="text-center">
               <p className="text-sm font-medium text-blue-700">{match.homeTeam?.name}</p>
@@ -293,6 +321,15 @@ function LiveScoring({
           onClick={() => score("away")}
         >
           +1 {match.awayTeam?.name}
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" disabled={loading} onClick={addNextSet}>
+          Add Next Set
+        </Button>
+        <Button variant="secondary" disabled={loading} onClick={finishMatch}>
+          End Match
         </Button>
       </div>
 
