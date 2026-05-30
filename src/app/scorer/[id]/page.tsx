@@ -150,20 +150,26 @@ function RotationSetup({
   );
 }
 
+const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
+const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
+
 function CourtRotation({
   teamName,
   rotations,
   serving,
   color,
+  side,
 }: {
   teamName: string;
   rotations: Match["rotations"];
   serving: boolean;
   color: "blue" | "teal";
+  side: "left" | "right";
 }) {
   const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
   const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
   const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
+  const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
 
   return (
     <div className={`rounded-xl border p-4 ${bg}`}>
@@ -171,8 +177,8 @@ function CourtRotation({
         <h3 className={`font-semibold ${accent}`}>{teamName}</h3>
         {serving && <Badge color="orange">Serving</Badge>}
       </div>
-      <div className="grid grid-cols-3 gap-2 text-center text-sm">
-        {[4, 3, 2, 5, 6, 1].map((pos) => {
+      <div className="grid grid-cols-2 gap-2 text-center text-sm">
+        {positions.map((pos) => {
           const entry = teamRotations.find((r) => r.position === pos);
           const isServer = pos === 1 && serving;
           return (
@@ -296,12 +302,14 @@ function LiveScoring({
           rotations={match.rotations?.filter((r) => r.teamId === match.homeTeamId)}
           serving={match.servingTeam === "home"}
           color="blue"
+          side="left"
         />
         <CourtRotation
           teamName={match.awayTeam?.name ?? "Away"}
           rotations={match.rotations?.filter((r) => r.teamId === match.awayTeamId)}
           serving={match.servingTeam === "away"}
           color="teal"
+          side="right"
         />
       </div>
 
