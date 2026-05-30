@@ -14,9 +14,17 @@ import {
   RotationEntry,
   ServingTeam,
   SetRotationInput,
+  SubstituteInput,
+  Substitution,
   Team,
   rotateClockwise,
 } from "./types";
+import {
+  isTeamCaptainOnCourt,
+  needsGameCaptainAssignment,
+  normalizeGameCaptainId,
+} from "./captains";
+import { getAllowedSubstitutesIn } from "./substitutions";
 
 function normalizePlayerRole(role: unknown): PlayerRole | null {
   return role === "team_captain" || role === "libero" ? role : null;
@@ -54,7 +62,60 @@ function rowToSet(row: Record<string, unknown>): MatchSet {
     homeScore: row.home_score as number,
     awayScore: row.away_score as number,
     status: row.status as MatchSet["status"],
+    homeGameCaptainId: (row.home_game_captain_id as string | null) ?? null,
+    awayGameCaptainId: (row.away_game_captain_id as string | null) ?? null,
   };
+}
+
+function validateSetGameCaptains(
+  match: Match,
+  homeRotation: string[],
+  awayRotation: string[],
+  homeGameCaptainId: string | null,
+  awayGameCaptainId: string | null
+) {
+  const homePlayers = match.homeTeam?.players ?? [];
+  const awayPlayers = match.awayTeam?.players ?? [];
+
+  const homeGc = normalizeGameCaptainId(homePlayers, homeRotation, homeGameCaptainId);
+  const awayGc = normalizeGameCaptainId(awayPlayers, awayRotation, awayGameCaptainId);
+
+  if (needsGameCaptainAssignment(homePlayers, homeRotation, homeGc)) {
+    throw new Error(`Select a Game Captain on court for ${match.homeTeam?.name ?? "home team"}`);
+  }
+  if (needsGameCaptainAssignment(awayPlayers, awayRotation, awayGc)) {
+    throw new Error(`Select a Game Captain on court for ${match.awayTeam?.name ?? "away team"}`);
+  }
+  if (homeGc && !homeRotation.includes(homeGc)) {
+    throw new Error("Home Game Captain must be on court");
+  }
+  if (awayGc && !awayRotation.includes(awayGc)) {
+    throw new Error("Away Game Captain must be on court");
+  }
+
+  return { homeGc, awayGc };
+}
+
+function updateSetGameCaptains(
+  matchId: string,
+  setNumber: number,
+  homeGameCaptainId: string | null,
+  awayGameCaptainId: string | null
+) {
+  const db = getDb();
+  db.prepare(
+    "UPDATE match_sets SET home_game_captain_id = ?, away_game_captain_id = ? WHERE match_id = ? AND set_number = ?"
+  ).run(homeGameCaptainId, awayGameCaptainId, matchId, setNumber);
+}
+
+function getOnCourtPlayerIds(matchId: string, teamId: string, setNumber: number): string[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT player_id FROM rotations WHERE match_id = ? AND team_id = ? AND set_number = ? ORDER BY position"
+    )
+    .all(matchId, teamId, setNumber) as Record<string, unknown>[];
+  return rows.map((row) => row.player_id as string);
 }
 
 function rowToRotation(row: Record<string, unknown>, player?: Player): RotationEntry {
@@ -197,6 +258,7 @@ function enrichMatch(row: Record<string, unknown>): Match {
   match.location = locationId ? getLocation(locationId) ?? undefined : undefined;
   match.sets = getMatchSets(match.id);
   match.rotations = getMatchRotations(match.id, match.currentSet);
+  match.substitutions = getMatchSubstitutions(match.id, match.currentSet);
   return match;
 }
 
@@ -237,6 +299,54 @@ function getMatchRotations(matchId: string, setNumber: number): RotationEntry[] 
       role: normalizePlayerRole(row.role),
     })
   );
+}
+
+function rowToSubstitution(row: Record<string, unknown>): Substitution {
+  return {
+    id: row.id as string,
+    matchId: row.match_id as string,
+    teamId: row.team_id as string,
+    setNumber: row.set_number as number,
+    position: row.position as number,
+    playerOutId: row.player_out_id as string,
+    playerInId: row.player_in_id as string,
+    createdAt: row.created_at as string,
+  };
+}
+
+function getMatchSubstitutions(matchId: string, setNumber: number): Substitution[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT s.*,
+        po.name as out_name, po.jersey_number as out_jersey, po.role as out_role, po.team_id as out_team_id,
+        pi.name as in_name, pi.jersey_number as in_jersey, pi.role as in_role, pi.team_id as in_team_id
+       FROM substitutions s
+       JOIN players po ON s.player_out_id = po.id
+       JOIN players pi ON s.player_in_id = pi.id
+       WHERE s.match_id = ? AND s.set_number = ?
+       ORDER BY s.created_at`
+    )
+    .all(matchId, setNumber) as Record<string, unknown>[];
+
+  return rows.map((row) => {
+    const sub = rowToSubstitution(row);
+    sub.playerOut = {
+      id: sub.playerOutId,
+      teamId: row.out_team_id as string,
+      name: row.out_name as string,
+      jerseyNumber: row.out_jersey as number,
+      role: normalizePlayerRole(row.out_role),
+    };
+    sub.playerIn = {
+      id: sub.playerInId,
+      teamId: row.in_team_id as string,
+      name: row.in_name as string,
+      jerseyNumber: row.in_jersey as number,
+      role: normalizePlayerRole(row.in_role),
+    };
+    return sub;
+  });
 }
 
 export function createMatch(input: CreateMatchInput): Match {
@@ -285,6 +395,13 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
   }
 
   const setNumber = match.currentSet;
+  const { homeGc, awayGc } = validateSetGameCaptains(
+    match,
+    input.homeRotation,
+    input.awayRotation,
+    input.homeGameCaptainId ?? null,
+    input.awayGameCaptainId ?? null
+  );
 
   db.prepare("DELETE FROM rotations WHERE match_id = ? AND set_number = ?").run(matchId, setNumber);
 
@@ -305,13 +422,94 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
 
   if (!existingSet) {
     db.prepare(
-      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score) VALUES (?, ?, ?, 0, 0)"
-    ).run(uuidv4(), matchId, setNumber);
+      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id) VALUES (?, ?, ?, 0, 0, ?, ?)"
+    ).run(uuidv4(), matchId, setNumber, homeGc, awayGc);
+  } else {
+    updateSetGameCaptains(matchId, setNumber, homeGc, awayGc);
   }
 
   db.prepare(
     "UPDATE matches SET status = 'in_progress', serving_team = ? WHERE id = ?"
   ).run(input.servingTeam, matchId);
+
+  return getMatch(matchId)!;
+}
+
+export function substitutePlayer(matchId: string, input: SubstituteInput): Match {
+  const db = getDb();
+  const match = getMatch(matchId);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "in_progress") throw new Error("Match is not in progress");
+  if (input.position < 1 || input.position > 6) throw new Error("Position must be between 1 and 6");
+
+  const setNumber = match.currentSet;
+  const teamId = input.team === "home" ? match.homeTeamId : match.awayTeamId;
+  const players = input.team === "home" ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [];
+  const currentSet = match.sets?.find((s) => s.setNumber === setNumber);
+  if (!currentSet) throw new Error("Current set not found");
+
+  const rosterPlayer = players.find((p) => p.id === input.playerInId);
+  if (!rosterPlayer) throw new Error("Substitute player must be on the team roster");
+
+  const onCourtIds = getOnCourtPlayerIds(matchId, teamId, setNumber);
+  const currentEntry = db
+    .prepare(
+      "SELECT player_id FROM rotations WHERE match_id = ? AND team_id = ? AND set_number = ? AND position = ?"
+    )
+    .get(matchId, teamId, setNumber, input.position) as Record<string, unknown> | undefined;
+  if (!currentEntry) throw new Error("Court position not found");
+  const playerOutId = currentEntry.player_id as string;
+
+  if (onCourtIds.includes(input.playerInId)) {
+    throw new Error("Substitute player is already on court");
+  }
+
+  const setSubstitutions = getMatchSubstitutions(matchId, setNumber).filter((s) => s.teamId === teamId);
+  const bench = players.filter((p) => !onCourtIds.includes(p.id));
+  const allowed = getAllowedSubstitutesIn(playerOutId, bench, setSubstitutions);
+  if (!allowed.some((p) => p.id === input.playerInId)) {
+    const partner = allowed[0];
+    if (partner) {
+      throw new Error(`Only #${partner.jerseyNumber} ${partner.name} can substitute for this player`);
+    }
+    throw new Error("This player cannot be substituted with the selected bench player");
+  }
+
+  db.prepare(
+    "UPDATE rotations SET player_id = ? WHERE match_id = ? AND team_id = ? AND set_number = ? AND position = ?"
+  ).run(input.playerInId, matchId, teamId, setNumber, input.position);
+
+  db.prepare(
+    "INSERT INTO substitutions (id, match_id, team_id, set_number, position, player_out_id, player_in_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).run(uuidv4(), matchId, teamId, setNumber, input.position, playerOutId, input.playerInId);
+
+  const updatedOnCourtIds = getOnCourtPlayerIds(matchId, teamId, setNumber);
+  const currentGameCaptainId =
+    input.team === "home" ? currentSet.homeGameCaptainId ?? null : currentSet.awayGameCaptainId ?? null;
+
+  let nextGameCaptainId = normalizeGameCaptainId(players, updatedOnCourtIds, currentGameCaptainId);
+  if (nextGameCaptainId && !updatedOnCourtIds.includes(nextGameCaptainId)) {
+    nextGameCaptainId = null;
+  }
+
+  if (needsGameCaptainAssignment(players, updatedOnCourtIds, nextGameCaptainId)) {
+    if (!input.gameCaptainId) {
+      throw new Error("Assign a Game Captain from players on court");
+    }
+    if (!updatedOnCourtIds.includes(input.gameCaptainId)) {
+      throw new Error("Game Captain must be one of the players on court");
+    }
+    if (isTeamCaptainOnCourt(players, updatedOnCourtIds)) {
+      throw new Error("Team Captain is on court; a Game Captain is not required");
+    }
+    nextGameCaptainId = input.gameCaptainId;
+  }
+
+  if (input.team === "home") {
+    updateSetGameCaptains(matchId, setNumber, nextGameCaptainId, currentSet.awayGameCaptainId ?? null);
+  } else {
+    updateSetGameCaptains(matchId, setNumber, currentSet.homeGameCaptainId ?? null, nextGameCaptainId);
+  }
 
   return getMatch(matchId)!;
 }

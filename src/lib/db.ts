@@ -72,6 +72,21 @@ function initSchema(database: Database.Database) {
       place_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS substitutions (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 6),
+      player_out_id TEXT NOT NULL,
+      player_in_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id),
+      FOREIGN KEY (player_out_id) REFERENCES players(id),
+      FOREIGN KEY (player_in_id) REFERENCES players(id)
+    );
   `);
   migrateSchema(database);
 }
@@ -91,6 +106,32 @@ function migrateSchema(database: Database.Database) {
   if (!playerNames.has("role")) {
     database.exec("ALTER TABLE players ADD COLUMN role TEXT");
   }
+
+  const setColumns = database.prepare("PRAGMA table_info(match_sets)").all() as { name: string }[];
+  const setNames = new Set(setColumns.map((c) => c.name));
+  if (!setNames.has("home_game_captain_id")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN home_game_captain_id TEXT REFERENCES players(id)");
+  }
+  if (!setNames.has("away_game_captain_id")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN away_game_captain_id TEXT REFERENCES players(id)");
+  }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS substitutions (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 6),
+      player_out_id TEXT NOT NULL,
+      player_in_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id),
+      FOREIGN KEY (player_out_id) REFERENCES players(id),
+      FOREIGN KEY (player_in_id) REFERENCES players(id)
+    )
+  `);
 }
 
 export function getDb(): Database.Database {

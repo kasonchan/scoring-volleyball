@@ -31,6 +31,8 @@ export interface MatchSet {
   homeScore: number;
   awayScore: number;
   status: SetStatus;
+  homeGameCaptainId?: string | null;
+  awayGameCaptainId?: string | null;
 }
 
 export interface RotationEntry {
@@ -41,6 +43,19 @@ export interface RotationEntry {
   position: number;
   playerId: string;
   player?: Player;
+}
+
+export interface Substitution {
+  id: string;
+  matchId: string;
+  teamId: string;
+  setNumber: number;
+  position: number;
+  playerOutId: string;
+  playerInId: string;
+  createdAt: string;
+  playerOut?: Player;
+  playerIn?: Player;
 }
 
 export interface Match {
@@ -58,6 +73,7 @@ export interface Match {
   location?: Location;
   sets?: MatchSet[];
   rotations?: RotationEntry[];
+  substitutions?: Substitution[];
 }
 
 export interface CreateTeamInput {
@@ -88,6 +104,15 @@ export interface SetRotationInput {
   homeRotation: string[];
   awayRotation: string[];
   servingTeam: ServingTeam;
+  homeGameCaptainId?: string | null;
+  awayGameCaptainId?: string | null;
+}
+
+export interface SubstituteInput {
+  team: ServingTeam;
+  position: number;
+  playerInId: string;
+  gameCaptainId?: string | null;
 }
 
 export interface Location {

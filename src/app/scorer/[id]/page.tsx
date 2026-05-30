@@ -6,10 +6,79 @@ import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { CurrentTimeClock } from "@/components/CurrentTimeClock";
 import { Badge, Button, Card } from "@/components/ui";
-import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, formatMatchDateTime, getMatchSummary } from "@/lib/types";
+import {
+  benchPlayers,
+  getCaptainLabel,
+  needsGameCaptainAssignment,
+} from "@/lib/captains";
+import { getAllowedSubstitutesIn } from "@/lib/substitutions";
+import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
+
+function TeamRosterList({
+  players,
+  color,
+  onCourtPositionByPlayerId,
+  gameCaptainId = null,
+}: {
+  players: Player[];
+  color: "blue" | "teal";
+  onCourtPositionByPlayerId: (playerId: string) => number | null;
+  gameCaptainId?: string | null;
+}) {
+  return (
+    <div className="mt-4 border-t border-white/70 pt-4">
+      <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Roster</h4>
+      {players.length === 0 ? (
+        <p className="text-sm text-slate-500">No players on roster.</p>
+      ) : (
+        <div className="space-y-1">
+          {[...players]
+            .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
+            .map((p) => {
+              const courtPosition = onCourtPositionByPlayerId(p.id);
+              const onCourt = courtPosition !== null;
+              const captainLabel = onCourt ? getCaptainLabel(players, p.id, gameCaptainId) : null;
+              return (
+                <div
+                  key={p.id}
+                  className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                    onCourt ? "bg-white font-medium text-slate-900" : "text-slate-600"
+                  }`}
+                >
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
+                      color === "blue" ? "bg-blue-500" : "bg-teal-500"
+                    }`}
+                  >
+                    {p.jerseyNumber}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  {p.role && (
+                    <span className="hidden shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-600 sm:inline">
+                      {PLAYER_ROLE_LABELS[p.role]}
+                    </span>
+                  )}
+                  {captainLabel === "Game Captain" && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                      Game Captain
+                    </span>
+                  )}
+                  {onCourt && (
+                    <span className="shrink-0 text-xs font-medium text-orange-600">
+                      P{courtPosition}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RotationSetup({
   match,
@@ -24,9 +93,24 @@ function RotationSetup({
 }) {
   const [homeRotation, setHomeRotation] = useState<(string | null)[]>(Array(6).fill(null));
   const [awayRotation, setAwayRotation] = useState<(string | null)[]>(Array(6).fill(null));
+  const [homeGameCaptain, setHomeGameCaptain] = useState<string | null>(null);
+  const [awayGameCaptain, setAwayGameCaptain] = useState<string | null>(null);
   const [servingTeam, setServingTeam] = useState<ServingTeam>("home");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function onCourtPlayers(players: Player[], rotation: (string | null)[]) {
+    return players.filter((p) => rotation.includes(p.id));
+  }
+
+  function needsGameCaptainPrompt(
+    players: Player[],
+    rotation: (string | null)[],
+    gameCaptainId: string | null
+  ) {
+    const onCourt = rotation.filter((id): id is string => !!id);
+    return needsGameCaptainAssignment(players, onCourt, gameCaptainId);
+  }
 
   function setPlayer(
     team: "home" | "away",
@@ -35,9 +119,14 @@ function RotationSetup({
   ) {
     const setter = team === "home" ? setHomeRotation : setAwayRotation;
     const rotation = team === "home" ? homeRotation : awayRotation;
+    const gameCaptain = team === "home" ? homeGameCaptain : awayGameCaptain;
+    const setGameCaptain = team === "home" ? setHomeGameCaptain : setAwayGameCaptain;
     const updated = [...rotation];
     updated[position] = playerId;
     setter(updated);
+    if (gameCaptain && !updated.includes(gameCaptain)) {
+      setGameCaptain(null);
+    }
   }
 
   async function handleSubmit() {
@@ -45,6 +134,18 @@ function RotationSetup({
       setError("Select a player for all 6 positions on each team");
       return;
     }
+
+    const homePlayers = match.homeTeam?.players ?? [];
+    const awayPlayers = match.awayTeam?.players ?? [];
+    if (needsGameCaptainPrompt(homePlayers, homeRotation, homeGameCaptain)) {
+      setError(`Select a Game Captain on court for ${match.homeTeam?.name ?? "home team"}`);
+      return;
+    }
+    if (needsGameCaptainPrompt(awayPlayers, awayRotation, awayGameCaptain)) {
+      setError(`Select a Game Captain on court for ${match.awayTeam?.name ?? "away team"}`);
+      return;
+    }
+
     setError("");
     setLoading(true);
     try {
@@ -55,6 +156,8 @@ function RotationSetup({
           homeRotation,
           awayRotation,
           servingTeam,
+          homeGameCaptainId: homeGameCaptain,
+          awayGameCaptainId: awayGameCaptain,
         }),
       });
       const data = await res.json();
@@ -73,7 +176,9 @@ function RotationSetup({
     players: Player[],
     rotation: (string | null)[],
     side: "left" | "right",
-    color: "blue" | "teal"
+    color: "blue" | "teal",
+    gameCaptain: string | null,
+    onGameCaptainChange: (playerId: string | null) => void
   ) {
     const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
     const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
@@ -112,48 +217,36 @@ function RotationSetup({
             );
           })}
         </div>
-        <div className="mt-4 border-t border-white/70 pt-4">
-          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Roster</h4>
-          {players.length === 0 ? (
-            <p className="text-sm text-slate-500">No players on roster.</p>
-          ) : (
-            <div className="space-y-1">
-              {[...players]
+        {needsGameCaptainPrompt(players, rotation, gameCaptain) && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-900">
+              Team Captain is not on court. Assign a Game Captain from players on court.
+            </p>
+            <select
+              value={gameCaptain ?? ""}
+              onChange={(e) => onGameCaptainChange(e.target.value || null)}
+              className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+            >
+              <option value="">Select Game Captain...</option>
+              {onCourtPlayers(players, rotation)
                 .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
-                .map((p) => {
-                  const positionIndex = rotation.indexOf(p.id);
-                  const onCourt = positionIndex !== -1;
-                  return (
-                    <div
-                      key={p.id}
-                      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${
-                        onCourt ? "bg-white font-medium text-slate-900" : "text-slate-600"
-                      }`}
-                    >
-                      <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
-                          color === "blue" ? "bg-blue-500" : "bg-teal-500"
-                        }`}
-                      >
-                        {p.jerseyNumber}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      {p.role && (
-                        <span className="hidden shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-600 sm:inline">
-                          {PLAYER_ROLE_LABELS[p.role]}
-                        </span>
-                      )}
-                      {onCourt && (
-                        <span className="shrink-0 text-xs font-medium text-orange-600">
-                          P{positionIndex + 1}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    #{p.jerseyNumber} {p.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+        <TeamRosterList
+          players={players}
+          color={color}
+          gameCaptainId={gameCaptain}
+          onCourtPositionByPlayerId={(playerId) => {
+            const positionIndex = rotation.indexOf(playerId);
+            return positionIndex === -1 ? null : positionIndex + 1;
+          }}
+        />
       </div>
     );
   }
@@ -216,7 +309,9 @@ function RotationSetup({
                 isHome ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [],
                 isHome ? homeRotation : awayRotation,
                 side,
-                isHome ? "blue" : "teal"
+                isHome ? "blue" : "teal",
+                isHome ? homeGameCaptain : awayGameCaptain,
+                isHome ? setHomeGameCaptain : setAwayGameCaptain
               )}
             </Fragment>
           );
@@ -258,34 +353,60 @@ function CourtRotation({
   serving,
   color,
   side,
+  players,
+  gameCaptainId,
+  substitutions,
+  onOpenSubstitute,
 }: {
   teamName: string;
   rotations: Match["rotations"];
   serving: boolean;
   color: "blue" | "teal";
   side: "left" | "right";
+  players: Player[];
+  gameCaptainId: string | null;
+  substitutions: Substitution[];
+  onOpenSubstitute?: () => void;
 }) {
   const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
+  const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
   const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
   const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
   const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
 
   return (
     <div className={`rounded-xl border p-4 ${bg}`}>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className={`font-semibold ${accent}`}>{teamName}</h3>
-        {serving && <Badge color="orange">Serving</Badge>}
+        <div className="flex items-center gap-2">
+          {onOpenSubstitute && (
+            <Button variant="secondary" type="button" onClick={onOpenSubstitute} className="text-xs">
+              Substitute
+            </Button>
+          )}
+          {serving && <Badge color="orange">Serving</Badge>}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 text-center text-sm">
         {positions.map((pos) => {
           const entry = teamRotations.find((r) => r.position === pos);
           const isServer = pos === 1 && serving;
+          const captainLabel = entry?.player
+            ? getCaptainLabel(players, entry.player.id, gameCaptainId)
+            : null;
           return (
             <div
               key={pos}
               className={`rounded-lg bg-white p-2 shadow-sm ${isServer ? "ring-2 ring-orange-400" : ""}`}
             >
-              <div className="text-xs text-slate-400">P{pos}</div>
+              <div className="flex items-center justify-between gap-1">
+                <div className="text-xs text-slate-400">P{pos}</div>
+                {captainLabel && (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                    {captainLabel === "Team Captain" ? "TC" : "GC"}
+                  </span>
+                )}
+              </div>
               <div className="font-bold text-slate-900">
                 {entry?.player ? `#${entry.player.jerseyNumber}` : "—"}
               </div>
@@ -296,6 +417,199 @@ function CourtRotation({
           );
         })}
       </div>
+      {!needsGameCaptainAssignment(players, onCourtPlayerIds, gameCaptainId) ? null : (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          No Team Captain or Game Captain on court. Substitute to assign a Game Captain.
+        </p>
+      )}
+      <TeamRosterList
+        players={players}
+        color={color}
+        gameCaptainId={gameCaptainId}
+        onCourtPositionByPlayerId={(playerId) => {
+          const entry = teamRotations.find((r) => r.playerId === playerId);
+          return entry?.position ?? null;
+        }}
+      />
+      {substitutions.length > 0 && (
+        <div className="mt-4 border-t border-white/70 pt-4">
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            Substitution History
+          </h4>
+          <div className="space-y-1">
+            {substitutions.map((sub) => (
+              <div key={sub.id} className="rounded-lg bg-white/80 px-2 py-1.5 text-xs text-slate-700">
+                P{sub.position}: #{sub.playerOut?.jerseyNumber} {sub.playerOut?.name} → #
+                {sub.playerIn?.jerseyNumber} {sub.playerIn?.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubstitutionModal({
+  teamName,
+  rotations,
+  players,
+  substitutions,
+  currentGameCaptainId,
+  initialPosition,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  teamName: string;
+  rotations: Match["rotations"];
+  players: Player[];
+  substitutions: Substitution[];
+  currentGameCaptainId: string | null;
+  initialPosition?: number;
+  onClose: () => void;
+  onConfirm: (position: number, playerInId: string, gameCaptainId: string | null) => void;
+  loading: boolean;
+}) {
+  const [position, setPosition] = useState(initialPosition ? String(initialPosition) : "");
+  const [playerInId, setPlayerInId] = useState("");
+  const [selectedGameCaptainId, setSelectedGameCaptainId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
+  const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
+  const selectedPosition = position ? Number(position) : null;
+  const currentEntry = selectedPosition
+    ? teamRotations.find((r) => r.position === selectedPosition)
+    : undefined;
+  const currentPlayer = currentEntry?.player;
+  const bench = benchPlayers(players, onCourtPlayerIds);
+  const allowedBench = currentPlayer
+    ? getAllowedSubstitutesIn(currentPlayer.id, bench, substitutions)
+    : [];
+
+  const projectedOnCourt =
+    currentPlayer && playerInId
+      ? onCourtPlayerIds.map((id) => (id === currentPlayer.id ? playerInId : id))
+      : [];
+  const showGameCaptainPicker =
+    !!playerInId &&
+    needsGameCaptainAssignment(players, projectedOnCourt, currentGameCaptainId);
+
+  function handleSubmit() {
+    if (!selectedPosition || !currentPlayer) {
+      setError("Select a court position");
+      return;
+    }
+    if (!playerInId) {
+      setError("Select a substitute player");
+      return;
+    }
+    if (showGameCaptainPicker && !selectedGameCaptainId) {
+      setError("Assign a Game Captain from players on court");
+      return;
+    }
+    setError("");
+    onConfirm(selectedPosition, playerInId, showGameCaptainPicker ? selectedGameCaptainId : null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-md">
+        <h3 className="text-lg font-semibold text-slate-900">Substitution — {teamName}</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Paired substitutions only: once two players swap, only they can substitute for each other.
+        </p>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Player out (position)</label>
+            <select
+              value={position}
+              onChange={(e) => {
+                setPosition(e.target.value);
+                setPlayerInId("");
+                setSelectedGameCaptainId(null);
+                setError("");
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+            >
+              <option value="">Select position...</option>
+              {teamRotations.map((entry) => (
+                <option key={entry.position} value={entry.position}>
+                  P{entry.position}: #{entry.player?.jerseyNumber} {entry.player?.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {currentPlayer && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Substitute in</label>
+              {allowedBench.length === 0 ? (
+                <p className="text-sm text-slate-500">No eligible substitute available for this player.</p>
+              ) : (
+                <select
+                  value={playerInId}
+                  onChange={(e) => {
+                    setPlayerInId(e.target.value);
+                    setSelectedGameCaptainId(null);
+                    setError("");
+                  }}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                >
+                  <option value="">Select player...</option>
+                  {allowedBench.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      #{p.jerseyNumber} {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {allowedBench.length === 1 && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Only #{allowedBench[0].jerseyNumber} {allowedBench[0].name} can sub for this player.
+                </p>
+              )}
+            </div>
+          )}
+          {showGameCaptainPicker && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-900">
+                No Team Captain or Game Captain on court. Assign a Game Captain.
+              </p>
+              <select
+                value={selectedGameCaptainId ?? ""}
+                onChange={(e) => setSelectedGameCaptainId(e.target.value || null)}
+                className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+              >
+                <option value="">Select Game Captain...</option>
+                {projectedOnCourt.map((id) => {
+                  const player = players.find((p) => p.id === id);
+                  if (!player) return null;
+                  return (
+                    <option key={id} value={id}>
+                      #{player.jerseyNumber} {player.name}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+          {error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          )}
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || !currentPlayer || allowedBench.length === 0}
+          >
+            {loading ? "Saving..." : "Confirm Substitution"}
+          </Button>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -312,6 +626,15 @@ function LiveScoring({
   onSwitchCourt: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [subModal, setSubModal] = useState<{
+    team: ServingTeam;
+    teamId: string;
+    teamName: string;
+    players: Player[];
+    rotations: Match["rotations"];
+    substitutions: Substitution[];
+    gameCaptainId: string | null;
+  } | null>(null);
   const summary = getMatchSummary(match);
   const homeScore = summary.currentSet?.homeScore ?? 0;
   const awayScore = summary.currentSet?.awayScore ?? 0;
@@ -362,6 +685,56 @@ function LiveScoring({
     } finally {
       setLoading(false);
     }
+  }
+
+  async function confirmSubstitution(
+    position: number,
+    playerInId: string,
+    gameCaptainId: string | null
+  ) {
+    if (!subModal) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/substitute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          team: subModal.team,
+          position,
+          playerInId,
+          gameCaptainId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSubModal(null);
+      onUpdate(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to substitute");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openSubstitution(
+    team: ServingTeam,
+    teamId: string,
+    teamName: string,
+    players: Player[],
+    gameCaptainId: string | null
+  ) {
+    const teamRotations = match.rotations?.filter((r) => r.teamId === teamId) ?? [];
+    const teamSubstitutions = match.substitutions?.filter((s) => s.teamId === teamId) ?? [];
+
+    setSubModal({
+      team,
+      teamId,
+      teamName,
+      players,
+      rotations: teamRotations,
+      substitutions: teamSubstitutions,
+      gameCaptainId,
+    });
   }
 
   if (match.status === "completed") {
@@ -430,8 +803,22 @@ function LiveScoring({
         },
       ] as const);
 
+  const currentSetRow = summary.currentSet;
+
   return (
     <div className="space-y-6">
+      {subModal && (
+        <SubstitutionModal
+          teamName={subModal.teamName}
+          rotations={subModal.rotations}
+          players={subModal.players}
+          substitutions={subModal.substitutions}
+          currentGameCaptainId={subModal.gameCaptainId}
+          onClose={() => setSubModal(null)}
+          onConfirm={confirmSubstitution}
+          loading={loading}
+        />
+      )}
       <Card>
         <div className="text-center">
           <p className="text-sm font-medium text-slate-500">Set {match.currentSet}</p>
@@ -480,16 +867,35 @@ function LiveScoring({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {courtTeams.map(({ teamId, teamName, color, side, serving }) => (
-          <CourtRotation
-            key={teamId}
-            teamName={teamName}
-            rotations={match.rotations?.filter((r) => r.teamId === teamId)}
-            serving={serving}
-            color={color}
-            side={side}
-          />
-        ))}
+        {courtTeams.map(({ team, teamId, teamName, color, side, serving }) => {
+          const players =
+            teamId === match.homeTeamId
+              ? match.homeTeam?.players ?? []
+              : match.awayTeam?.players ?? [];
+          const gameCaptainId =
+            teamId === match.homeTeamId
+              ? currentSetRow?.homeGameCaptainId ?? null
+              : currentSetRow?.awayGameCaptainId ?? null;
+          const teamSubstitutions =
+            match.substitutions?.filter((s) => s.teamId === teamId) ?? [];
+
+          return (
+            <CourtRotation
+              key={teamId}
+              teamName={teamName}
+              rotations={match.rotations?.filter((r) => r.teamId === teamId)}
+              serving={serving}
+              color={color}
+              side={side}
+              players={players}
+              gameCaptainId={gameCaptainId}
+              substitutions={teamSubstitutions}
+              onOpenSubstitute={() =>
+                openSubstitution(team, teamId, teamName, players, gameCaptainId)
+              }
+            />
+          );
+        })}
       </div>
     </div>
   );
