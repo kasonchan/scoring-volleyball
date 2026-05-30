@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
@@ -208,13 +208,17 @@ function RotationSetup({
       <div className="grid gap-4 lg:grid-cols-2">
         {courtTeams.map(({ team, side }) => {
           const isHome = team === "home";
-          return renderTeamRotation(
-            team,
-            isHome ? match.homeTeam?.name ?? "Home" : match.awayTeam?.name ?? "Away",
-            isHome ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [],
-            isHome ? homeRotation : awayRotation,
-            side,
-            isHome ? "blue" : "teal"
+          return (
+            <Fragment key={team}>
+              {renderTeamRotation(
+                team,
+                isHome ? match.homeTeam?.name ?? "Home" : match.awayTeam?.name ?? "Away",
+                isHome ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [],
+                isHome ? homeRotation : awayRotation,
+                side,
+                isHome ? "blue" : "teal"
+              )}
+            </Fragment>
           );
         })}
       </div>
