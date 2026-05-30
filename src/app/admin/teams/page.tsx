@@ -55,9 +55,14 @@ export default function TeamsPage() {
                     <h2 className="text-lg font-semibold text-slate-900">{team.name}</h2>
                     <Badge color="blue">{team.players?.length ?? 0} players</Badge>
                   </div>
-                  <Button variant="danger" onClick={() => handleDelete(team.id, team.name)}>
-                    Delete
-                  </Button>
+                  <div className="flex gap-2">
+                    <Link href={`/admin/teams/${team.id}/edit`}>
+                      <Button variant="secondary">Edit</Button>
+                    </Link>
+                    <Button variant="danger" onClick={() => handleDelete(team.id, team.name)}>
+                      Delete
+                    </Button>
+                  </div>
                 </div>
                 {team.players && team.players.length > 0 && (
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">

@@ -136,9 +136,16 @@ export default function MatchesPage() {
                   </p>
                   <div className="mt-1">{statusBadge(match.status)}</div>
                 </div>
-                <Link href={`/scorer/${match.id}`}>
-                  <Button variant="secondary">Open in Scorer</Button>
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  {match.status === "scheduled" && (
+                    <Link href={`/admin/matches/${match.id}/edit`}>
+                      <Button variant="secondary">Edit</Button>
+                    </Link>
+                  )}
+                  <Link href={`/scorer/${match.id}`}>
+                    <Button variant="secondary">Open in Scorer</Button>
+                  </Link>
+                </div>
               </Card>
             ))}
           </div>

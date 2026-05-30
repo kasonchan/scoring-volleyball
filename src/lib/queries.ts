@@ -3,6 +3,8 @@ import { getDb } from "./db";
 import {
   CreateMatchInput,
   CreateTeamInput,
+  UpdateMatchInput,
+  UpdateTeamInput,
   Match,
   MatchSet,
   Player,
@@ -94,6 +96,56 @@ export function createTeam(input: CreateTeamInput): Team {
   return getTeam(id)!;
 }
 
+export function updateTeam(id: string, input: UpdateTeamInput): Team {
+  const db = getDb();
+  const existing = getTeam(id);
+  if (!existing) throw new Error("Team not found");
+
+  if (!input.name?.trim()) throw new Error("Team name is required");
+  if (!input.players?.length) throw new Error("At least one player is required");
+
+  db.prepare("UPDATE teams SET name = ? WHERE id = ?").run(input.name.trim(), id);
+
+  const existingIds = new Set(existing.players?.map((p) => p.id) ?? []);
+  const submittedIds = new Set(input.players.filter((p) => p.id).map((p) => p.id!));
+
+  const updatePlayer = db.prepare(
+    "UPDATE players SET name = ?, jersey_number = ? WHERE id = ? AND team_id = ?"
+  );
+  const insertPlayer = db.prepare(
+    "INSERT INTO players (id, team_id, name, jersey_number) VALUES (?, ?, ?, ?)"
+  );
+
+  for (const p of input.players) {
+    const name = p.name.trim();
+    if (!name) throw new Error("All players must have a name");
+    if (isNaN(p.jerseyNumber)) throw new Error("All players must have a valid jersey number");
+
+    if (p.id && existingIds.has(p.id)) {
+      updatePlayer.run(name, p.jerseyNumber, p.id, id);
+    } else {
+      insertPlayer.run(uuidv4(), id, name, p.jerseyNumber);
+    }
+  }
+
+  for (const playerId of existingIds) {
+    if (!submittedIds.has(playerId)) {
+      const inRotation = db
+        .prepare("SELECT id FROM rotations WHERE player_id = ? LIMIT 1")
+        .get(playerId);
+      if (inRotation) {
+        const player = existing.players?.find((p) => p.id === playerId);
+        throw new Error(
+          `Cannot remove ${player?.name ?? "player"} — they are assigned to a match rotation`
+        );
+      }
+      db.prepare("DELETE FROM players WHERE id = ? AND team_id = ?").run(playerId, id);
+    }
+  }
+
+  return getTeam(id)!;
+}
+
 export function deleteTeam(id: string): boolean {
   const db = getDb();
   db.prepare("DELETE FROM players WHERE team_id = ?").run(id);
@@ -165,6 +217,27 @@ export function createMatch(input: CreateMatchInput): Match {
   db.prepare(
     "INSERT INTO matches (id, home_team_id, away_team_id, status) VALUES (?, ?, ?, 'scheduled')"
   ).run(id, input.homeTeamId, input.awayTeamId);
+  return getMatch(id)!;
+}
+
+export function updateMatch(id: string, input: UpdateMatchInput): Match {
+  const db = getDb();
+  const match = getMatch(id);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "scheduled") {
+    throw new Error("Only scheduled matches can be edited");
+  }
+  if (input.homeTeamId === input.awayTeamId) {
+    throw new Error("Home and away teams must be different");
+  }
+  if (!getTeam(input.homeTeamId) || !getTeam(input.awayTeamId)) {
+    throw new Error("Both teams must exist");
+  }
+
+  db.prepare(
+    "UPDATE matches SET home_team_id = ?, away_team_id = ? WHERE id = ?"
+  ).run(input.homeTeamId, input.awayTeamId, id);
+
   return getMatch(id)!;
 }
 

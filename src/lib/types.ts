@@ -54,7 +54,17 @@ export interface CreateTeamInput {
   players: { name: string; jerseyNumber: number }[];
 }
 
+export interface UpdateTeamInput {
+  name: string;
+  players: { id?: string; name: string; jerseyNumber: number }[];
+}
+
 export interface CreateMatchInput {
+  homeTeamId: string;
+  awayTeamId: string;
+}
+
+export interface UpdateMatchInput {
   homeTeamId: string;
   awayTeamId: string;
 }
