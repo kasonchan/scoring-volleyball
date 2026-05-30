@@ -10,16 +10,12 @@ export function CurrentTimeClock() {
     return () => clearInterval(id);
   }, []);
 
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
   return (
     <p className="font-mono text-sm tabular-nums text-slate-500">
-      {now.toLocaleString(undefined, {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-      })}
+      {time}
     </p>
   );
 }
