@@ -381,8 +381,14 @@ function CourtRotation({
         <h3 className={`font-semibold ${accent}`}>{teamName}</h3>
         <div className="flex items-center gap-2">
           {onOpenSubstitute && (
-            <Button variant="secondary" type="button" onClick={onOpenSubstitute} className="text-xs">
-              Substitute
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={onOpenSubstitute}
+              className="text-xs"
+              title="Substitutions this set"
+            >
+              Substitute ({substitutions.length})
             </Button>
           )}
           {serving && <Badge color="orange">Serving</Badge>}
