@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
+import { CurrentTimeClock } from "@/components/CurrentTimeClock";
 import { Badge, Button, Card } from "@/components/ui";
 import { Match, Player, ServingTeam, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
@@ -384,7 +385,7 @@ export default function MatchScorerPage() {
             {match.homeTeam?.name} vs {match.awayTeam?.name}
           </h1>
           {(when || match.location) && (
-            <div className="mt-2 space-y-1 text-sm text-slate-600">
+            <div className="mt-2 space-y-1 text-center text-sm text-slate-600">
               {when && <p>{when}</p>}
               {match.location && (
                 <p>
@@ -394,6 +395,9 @@ export default function MatchScorerPage() {
               )}
             </div>
           )}
+          <div className="mt-2 text-center">
+            <CurrentTimeClock />
+          </div>
         </div>
 
         {needsRotation && match.status === "scheduled" ? (
