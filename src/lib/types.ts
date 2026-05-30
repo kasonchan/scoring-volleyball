@@ -75,6 +75,18 @@ export interface SetRotationInput {
   servingTeam: ServingTeam;
 }
 
+export interface Location {
+  id: string;
+  name: string;
+  address: string;
+  createdAt: string;
+}
+
+export interface LocationInput {
+  name: string;
+  address: string;
+}
+
 export const SET_WIN_SCORE = [25, 25, 25, 25, 15] as const;
 export const SETS_TO_WIN = 3;
 

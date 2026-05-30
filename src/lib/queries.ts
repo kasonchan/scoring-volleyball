@@ -5,6 +5,8 @@ import {
   CreateTeamInput,
   UpdateMatchInput,
   UpdateTeamInput,
+  Location,
+  LocationInput,
   Match,
   MatchSet,
   Player,
@@ -371,5 +373,58 @@ function rotateTeam(matchId: string, setNumber: number, team: ServingTeam) {
   rotated.forEach((playerId, i) => {
     update.run(playerId, matchId, teamId, setNumber, i + 1);
   });
+}
+
+function rowToLocation(row: Record<string, unknown>): Location {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    address: row.address as string,
+    createdAt: row.created_at as string,
+  };
+}
+
+function validateLocationInput(input: LocationInput) {
+  if (!input.name?.trim()) throw new Error("Location name is required");
+  if (!input.address?.trim()) throw new Error("Address is required");
+}
+
+export function getAllLocations(): Location[] {
+  const db = getDb();
+  const rows = db.prepare("SELECT * FROM locations ORDER BY name").all() as Record<string, unknown>[];
+  return rows.map(rowToLocation);
+}
+
+export function getLocation(id: string): Location | null {
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM locations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return rowToLocation(row);
+}
+
+export function createLocation(input: LocationInput): Location {
+  const db = getDb();
+  validateLocationInput(input);
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO locations (id, name, address) VALUES (?, ?, ?)"
+  ).run(id, input.name.trim(), input.address.trim());
+  return getLocation(id)!;
+}
+
+export function updateLocation(id: string, input: LocationInput): Location {
+  const db = getDb();
+  if (!getLocation(id)) throw new Error("Location not found");
+  validateLocationInput(input);
+  db.prepare(
+    "UPDATE locations SET name = ?, address = ? WHERE id = ?"
+  ).run(input.name.trim(), input.address.trim(), id);
+  return getLocation(id)!;
+}
+
+export function deleteLocation(id: string): boolean {
+  const db = getDb();
+  const result = db.prepare("DELETE FROM locations WHERE id = ?").run(id);
+  return result.changes > 0;
 }
 

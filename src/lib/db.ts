@@ -58,6 +58,16 @@ function initSchema(database: Database.Database) {
       FOREIGN KEY (player_id) REFERENCES players(id),
       UNIQUE(match_id, team_id, set_number, position)
     );
+
+    CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      address TEXT NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      place_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 

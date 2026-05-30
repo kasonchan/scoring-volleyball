@@ -6,7 +6,10 @@ A web app for managing volleyball teams, scheduling matches, and scoring live ga
 
 ### Admin
 - **Create teams** with player names and jersey numbers
+- **Edit teams** — update rosters and jersey numbers
+- **Manage locations** — add and edit venues with name and address
 - **Create matches** by selecting two registered teams
+- **Edit matches** before scoring starts
 
 ### Scorer
 - **Select matches** created by admins
@@ -26,9 +29,10 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Workflow
 
 1. Go to **Admin → Teams** and create teams with rosters
-2. Go to **Admin → Matches** and schedule a match between two teams
-3. Go to **Scorer**, select the match, set rotations, and start scoring
-4. After each set ends, set the rotation for the next set before continuing
+2. Go to **Admin → Locations** and add venues with name and address
+3. Go to **Admin → Matches** and schedule a match between two teams
+4. Go to **Scorer**, select the match, set rotations, and start scoring
+5. After each set ends, set the rotation for the next set before continuing
 
 ## Tech Stack
 
