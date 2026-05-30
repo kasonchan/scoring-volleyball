@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { CurrentTimeClock } from "@/components/CurrentTimeClock";
 import { Badge, Button, Card } from "@/components/ui";
-import { Match, Player, ServingTeam, formatMatchDateTime, getMatchSummary } from "@/lib/types";
+import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
@@ -111,6 +111,48 @@ function RotationSetup({
               </div>
             );
           })}
+        </div>
+        <div className="mt-4 border-t border-white/70 pt-4">
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Roster</h4>
+          {players.length === 0 ? (
+            <p className="text-sm text-slate-500">No players on roster.</p>
+          ) : (
+            <div className="space-y-1">
+              {[...players]
+                .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
+                .map((p) => {
+                  const positionIndex = rotation.indexOf(p.id);
+                  const onCourt = positionIndex !== -1;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                        onCourt ? "bg-white font-medium text-slate-900" : "text-slate-600"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
+                          color === "blue" ? "bg-blue-500" : "bg-teal-500"
+                        }`}
+                      >
+                        {p.jerseyNumber}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                      {p.role && (
+                        <span className="hidden shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-600 sm:inline">
+                          {PLAYER_ROLE_LABELS[p.role]}
+                        </span>
+                      )}
+                      {onCourt && (
+                        <span className="shrink-0 text-xs font-medium text-orange-600">
+                          P{positionIndex + 1}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       </div>
     );
