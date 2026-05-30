@@ -27,12 +27,15 @@ function initSchema(database: Database.Database) {
       id TEXT PRIMARY KEY,
       home_team_id TEXT NOT NULL,
       away_team_id TEXT NOT NULL,
+      location_id TEXT,
+      scheduled_at TEXT,
       status TEXT NOT NULL DEFAULT 'scheduled',
       serving_team TEXT,
       current_set INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (home_team_id) REFERENCES teams(id),
-      FOREIGN KEY (away_team_id) REFERENCES teams(id)
+      FOREIGN KEY (away_team_id) REFERENCES teams(id),
+      FOREIGN KEY (location_id) REFERENCES locations(id)
     );
 
     CREATE TABLE IF NOT EXISTS match_sets (
@@ -69,6 +72,18 @@ function initSchema(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  migrateSchema(database);
+}
+
+function migrateSchema(database: Database.Database) {
+  const columns = database.prepare("PRAGMA table_info(matches)").all() as { name: string }[];
+  const names = new Set(columns.map((c) => c.name));
+  if (!names.has("location_id")) {
+    database.exec("ALTER TABLE matches ADD COLUMN location_id TEXT REFERENCES locations(id)");
+  }
+  if (!names.has("scheduled_at")) {
+    database.exec("ALTER TABLE matches ADD COLUMN scheduled_at TEXT");
+  }
 }
 
 export function getDb(): Database.Database {

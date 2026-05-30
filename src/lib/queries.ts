@@ -169,10 +169,13 @@ export function getMatch(id: string): Match | null {
 }
 
 function enrichMatch(row: Record<string, unknown>): Match {
+  const locationId = (row.location_id as string | null) ?? null;
   const match: Match = {
     id: row.id as string,
     homeTeamId: row.home_team_id as string,
     awayTeamId: row.away_team_id as string,
+    locationId,
+    scheduledAt: (row.scheduled_at as string | null) ?? null,
     status: row.status as Match["status"],
     servingTeam: (row.serving_team as ServingTeam | null) ?? null,
     currentSet: row.current_set as number,
@@ -180,9 +183,23 @@ function enrichMatch(row: Record<string, unknown>): Match {
   };
   match.homeTeam = getTeam(match.homeTeamId) ?? undefined;
   match.awayTeam = getTeam(match.awayTeamId) ?? undefined;
+  match.location = locationId ? getLocation(locationId) ?? undefined : undefined;
   match.sets = getMatchSets(match.id);
   match.rotations = getMatchRotations(match.id, match.currentSet);
   return match;
+}
+
+function validateMatchInput(input: CreateMatchInput | UpdateMatchInput) {
+  if (input.homeTeamId === input.awayTeamId) {
+    throw new Error("Home and away teams must be different");
+  }
+  if (!getTeam(input.homeTeamId) || !getTeam(input.awayTeamId)) {
+    throw new Error("Both teams must exist");
+  }
+  const locationId = input.locationId || null;
+  if (locationId && !getLocation(locationId)) {
+    throw new Error("Location not found");
+  }
 }
 
 function getMatchSets(matchId: string): MatchSet[] {
@@ -212,13 +229,13 @@ function getMatchRotations(matchId: string, setNumber: number): RotationEntry[] 
 
 export function createMatch(input: CreateMatchInput): Match {
   const db = getDb();
-  if (input.homeTeamId === input.awayTeamId) {
-    throw new Error("Home and away teams must be different");
-  }
+  validateMatchInput(input);
   const id = uuidv4();
+  const locationId = input.locationId || null;
+  const scheduledAt = input.scheduledAt || null;
   db.prepare(
-    "INSERT INTO matches (id, home_team_id, away_team_id, status) VALUES (?, ?, ?, 'scheduled')"
-  ).run(id, input.homeTeamId, input.awayTeamId);
+    "INSERT INTO matches (id, home_team_id, away_team_id, location_id, scheduled_at, status) VALUES (?, ?, ?, ?, ?, 'scheduled')"
+  ).run(id, input.homeTeamId, input.awayTeamId, locationId, scheduledAt);
   return getMatch(id)!;
 }
 
@@ -229,16 +246,13 @@ export function updateMatch(id: string, input: UpdateMatchInput): Match {
   if (match.status !== "scheduled") {
     throw new Error("Only scheduled matches can be edited");
   }
-  if (input.homeTeamId === input.awayTeamId) {
-    throw new Error("Home and away teams must be different");
-  }
-  if (!getTeam(input.homeTeamId) || !getTeam(input.awayTeamId)) {
-    throw new Error("Both teams must exist");
-  }
+  validateMatchInput(input);
+  const locationId = input.locationId || null;
+  const scheduledAt = input.scheduledAt || null;
 
   db.prepare(
-    "UPDATE matches SET home_team_id = ?, away_team_id = ? WHERE id = ?"
-  ).run(input.homeTeamId, input.awayTeamId, id);
+    "UPDATE matches SET home_team_id = ?, away_team_id = ?, location_id = ?, scheduled_at = ? WHERE id = ?"
+  ).run(input.homeTeamId, input.awayTeamId, locationId, scheduledAt, id);
 
   return getMatch(id)!;
 }

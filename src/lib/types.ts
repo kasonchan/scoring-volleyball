@@ -39,12 +39,15 @@ export interface Match {
   id: string;
   homeTeamId: string;
   awayTeamId: string;
+  locationId: string | null;
+  scheduledAt: string | null;
   status: MatchStatus;
   servingTeam: ServingTeam | null;
   currentSet: number;
   createdAt: string;
   homeTeam?: Team;
   awayTeam?: Team;
+  location?: Location;
   sets?: MatchSet[];
   rotations?: RotationEntry[];
 }
@@ -62,11 +65,15 @@ export interface UpdateTeamInput {
 export interface CreateMatchInput {
   homeTeamId: string;
   awayTeamId: string;
+  locationId?: string | null;
+  scheduledAt?: string | null;
 }
 
 export interface UpdateMatchInput {
   homeTeamId: string;
   awayTeamId: string;
+  locationId?: string | null;
+  scheduledAt?: string | null;
 }
 
 export interface SetRotationInput {
@@ -107,6 +114,31 @@ export function isSetWon(
 
 export function rotateClockwise(rotation: string[]): string[] {
   return [rotation[5], rotation[0], rotation[1], rotation[2], rotation[3], rotation[4]];
+}
+
+export function formatMatchDateTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+export function toDatetimeLocalValue(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function fromDatetimeLocalValue(value: string): string | null {
+  if (!value.trim()) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
 export function getMatchSummary(match: Match) {

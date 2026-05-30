@@ -4,16 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
+import {
+  MatchFormFields,
+  matchFormValuesToPayload,
+  matchToFormValues,
+} from "@/components/MatchFormFields";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
-import { Match, Team } from "@/lib/types";
+import { Location, Match, Team, formatMatchDateTime } from "@/lib/types";
 
 export default function EditMatchPage() {
   const params = useParams();
   const matchId = params.id as string;
   const [teams, setTeams] = useState<Team[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [match, setMatch] = useState<Match | null>(null);
-  const [homeTeamId, setHomeTeamId] = useState("");
-  const [awayTeamId, setAwayTeamId] = useState("");
+  const [formValues, setFormValues] = useState(matchToFormValues({
+    homeTeamId: "",
+    awayTeamId: "",
+    locationId: null,
+    scheduledAt: null,
+  }));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -21,16 +31,17 @@ export default function EditMatchPage() {
   useEffect(() => {
     Promise.all([
       fetch("/api/teams").then((r) => r.json()),
+      fetch("/api/locations").then((r) => r.json()),
       fetch(`/api/matches/${matchId}`).then((r) => {
         if (!r.ok) throw new Error("Match not found");
         return r.json();
       }),
     ])
-      .then(([t, m]) => {
+      .then(([t, l, m]) => {
         setTeams(t);
+        setLocations(l);
         setMatch(m);
-        setHomeTeamId(m.homeTeamId);
-        setAwayTeamId(m.awayTeamId);
+        setFormValues(matchToFormValues(m));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -44,7 +55,7 @@ export default function EditMatchPage() {
       const res = await fetch(`/api/matches/${matchId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ homeTeamId, awayTeamId }),
+        body: JSON.stringify(matchFormValuesToPayload(formValues)),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -89,7 +100,7 @@ export default function EditMatchPage() {
       <main className="mx-auto max-w-2xl flex-1 px-4 py-8">
         <PageHeader
           title="Edit Match"
-          description="Change the home and away teams for this match."
+          description="Update teams, location, and date/time for this match."
         />
 
         <Card>
@@ -104,6 +115,14 @@ export default function EditMatchPage() {
               <p className="mt-4 text-sm text-slate-500">
                 {match.homeTeam?.name} vs {match.awayTeam?.name}
               </p>
+              {formatMatchDateTime(match.scheduledAt) && (
+                <p className="mt-1 text-sm text-slate-500">
+                  {formatMatchDateTime(match.scheduledAt)}
+                </p>
+              )}
+              {match.location && (
+                <p className="mt-1 text-sm text-slate-500">{match.location.name}</p>
+              )}
               <Link href="/admin/matches" className="mt-6 inline-block">
                 <Button variant="secondary">Back to Matches</Button>
               </Link>
@@ -117,40 +136,12 @@ export default function EditMatchPage() {
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Home Team</label>
-                  <select
-                    required
-                    value={homeTeamId}
-                    onChange={(e) => setHomeTeamId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="">Select team...</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id} disabled={t.id === awayTeamId}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Away Team</label>
-                  <select
-                    required
-                    value={awayTeamId}
-                    onChange={(e) => setAwayTeamId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="">Select team...</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id} disabled={t.id === homeTeamId}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <MatchFormFields
+                teams={teams}
+                locations={locations}
+                values={formValues}
+                onChange={setFormValues}
+              />
 
               {error && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
