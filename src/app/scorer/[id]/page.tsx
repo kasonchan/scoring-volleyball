@@ -451,12 +451,90 @@ function CourtRotation({
   );
 }
 
+function SubstitutionCourtGrid({
+  rotations,
+  players,
+  gameCaptainId,
+  side,
+  color,
+  serving,
+  selectedPosition,
+  playerInId,
+  onSelectPosition,
+}: {
+  rotations: Match["rotations"];
+  players: Player[];
+  gameCaptainId: string | null;
+  side: "left" | "right";
+  color: "blue" | "teal";
+  serving: boolean;
+  selectedPosition: number | null;
+  playerInId: string | null;
+  onSelectPosition: (position: number) => void;
+}) {
+  const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
+  const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
+  const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
+  const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
+  const playerIn = playerInId ? players.find((p) => p.id === playerInId) : null;
+
+  return (
+    <div className={`rounded-xl border p-3 ${bg}`}>
+      <p className={`mb-2 text-xs font-medium ${accent}`}>Tap a position to substitute</p>
+      <div className="grid grid-cols-2 gap-2 text-center text-sm">
+        {positions.map((pos) => {
+          const entry = teamRotations.find((r) => r.position === pos);
+          const isServer = pos === 1 && serving;
+          const isSelected = selectedPosition === pos;
+          const isPreview = isSelected && !!playerIn;
+          const displayPlayer = isPreview ? playerIn : entry?.player;
+          const captainLabel = displayPlayer
+            ? getCaptainLabel(players, displayPlayer.id, gameCaptainId)
+            : null;
+
+          return (
+            <button
+              key={pos}
+              type="button"
+              onClick={() => onSelectPosition(pos)}
+              className={`rounded-lg bg-white p-2 shadow-sm transition ring-offset-1 focus:outline-none focus:ring-2 focus:ring-orange-400 ${
+                isServer ? "ring-2 ring-orange-400" : ""
+              } ${isSelected ? "ring-2 ring-orange-500" : ""} ${
+                isPreview ? "bg-emerald-50 ring-2 ring-emerald-500" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <div className="text-xs text-slate-400">P{pos}</div>
+                {captainLabel && (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                    {captainLabel === "Team Captain" ? "TC" : "GC"}
+                  </span>
+                )}
+              </div>
+              <div className="font-bold text-slate-900">
+                {displayPlayer ? `#${displayPlayer.jerseyNumber}` : "—"}
+              </div>
+              <div className="truncate text-xs text-slate-600">{displayPlayer?.name ?? ""}</div>
+              {isPreview && (
+                <div className="mt-0.5 text-[10px] font-medium text-emerald-700">Sub in</div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SubstitutionModal({
   teamName,
   rotations,
   players,
   substitutions,
   currentGameCaptainId,
+  side,
+  color,
+  serving,
   initialPosition,
   onClose,
   onConfirm,
@@ -467,19 +545,21 @@ function SubstitutionModal({
   players: Player[];
   substitutions: Substitution[];
   currentGameCaptainId: string | null;
+  side: "left" | "right";
+  color: "blue" | "teal";
+  serving: boolean;
   initialPosition?: number;
   onClose: () => void;
   onConfirm: (position: number, playerInId: string, gameCaptainId: string | null) => void;
   loading: boolean;
 }) {
-  const [position, setPosition] = useState(initialPosition ? String(initialPosition) : "");
+  const [selectedPosition, setSelectedPosition] = useState<number | null>(initialPosition ?? null);
   const [playerInId, setPlayerInId] = useState("");
   const [selectedGameCaptainId, setSelectedGameCaptainId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
   const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
-  const selectedPosition = position ? Number(position) : null;
   const currentEntry = selectedPosition
     ? teamRotations.find((r) => r.position === selectedPosition)
     : undefined;
@@ -496,6 +576,13 @@ function SubstitutionModal({
   const showGameCaptainPicker =
     !!playerInId &&
     needsGameCaptainAssignment(players, projectedOnCourt, currentGameCaptainId);
+
+  function selectPosition(pos: number) {
+    setSelectedPosition(pos);
+    setPlayerInId("");
+    setSelectedGameCaptainId(null);
+    setError("");
+  }
 
   function handleSubmit() {
     if (!selectedPosition || !currentPlayer) {
@@ -522,48 +609,52 @@ function SubstitutionModal({
           Paired substitutions only: once two players swap, only they can substitute for each other.
         </p>
         <div className="mt-4 space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Player out (position)</label>
-            <select
-              value={position}
-              onChange={(e) => {
-                setPosition(e.target.value);
-                setPlayerInId("");
-                setSelectedGameCaptainId(null);
-                setError("");
-              }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
-            >
-              <option value="">Select position...</option>
-              {teamRotations.map((entry) => (
-                <option key={entry.position} value={entry.position}>
-                  P{entry.position}: #{entry.player?.jerseyNumber} {entry.player?.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SubstitutionCourtGrid
+            rotations={rotations}
+            players={players}
+            gameCaptainId={currentGameCaptainId}
+            side={side}
+            color={color}
+            serving={serving}
+            selectedPosition={selectedPosition}
+            playerInId={playerInId || null}
+            onSelectPosition={selectPosition}
+          />
           {currentPlayer && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Substitute in</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Substitute in for #{currentPlayer.jerseyNumber} {currentPlayer.name}
+              </label>
               {allowedBench.length === 0 ? (
                 <p className="text-sm text-slate-500">No eligible substitute available for this player.</p>
               ) : (
-                <select
-                  value={playerInId}
-                  onChange={(e) => {
-                    setPlayerInId(e.target.value);
-                    setSelectedGameCaptainId(null);
-                    setError("");
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
-                >
-                  <option value="">Select player...</option>
+                <div className="space-y-1">
                   {allowedBench.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      #{p.jerseyNumber} {p.name}
-                    </option>
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setPlayerInId(p.id);
+                        setSelectedGameCaptainId(null);
+                        setError("");
+                      }}
+                      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                        playerInId === p.id
+                          ? "border-emerald-500 bg-emerald-50 font-medium text-emerald-900"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-orange-300"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
+                          color === "blue" ? "bg-blue-500" : "bg-teal-500"
+                        }`}
+                      >
+                        {p.jerseyNumber}
+                      </span>
+                      <span className="truncate">{p.name}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
               )}
               {allowedBench.length === 1 && (
                 <p className="mt-1 text-xs text-slate-500">
@@ -635,6 +726,9 @@ function LiveScoring({
     rotations: Match["rotations"];
     substitutions: Substitution[];
     gameCaptainId: string | null;
+    side: "left" | "right";
+    color: "blue" | "teal";
+    serving: boolean;
   } | null>(null);
   const summary = getMatchSummary(match);
   const homeScore = summary.currentSet?.homeScore ?? 0;
@@ -722,10 +816,16 @@ function LiveScoring({
     teamId: string,
     teamName: string,
     players: Player[],
-    gameCaptainId: string | null
+    gameCaptainId: string | null,
+    side: "left" | "right",
+    color: "blue" | "teal",
+    serving: boolean
   ) {
     const teamRotations = match.rotations?.filter((r) => r.teamId === teamId) ?? [];
-    const teamSubstitutions = match.substitutions?.filter((s) => s.teamId === teamId) ?? [];
+    const teamSubstitutions =
+      match.substitutions?.filter(
+        (s) => s.teamId === teamId && s.setNumber === match.currentSet
+      ) ?? [];
 
     setSubModal({
       team,
@@ -735,6 +835,9 @@ function LiveScoring({
       rotations: teamRotations,
       substitutions: teamSubstitutions,
       gameCaptainId,
+      side,
+      color,
+      serving,
     });
   }
 
@@ -815,6 +918,9 @@ function LiveScoring({
           players={subModal.players}
           substitutions={subModal.substitutions}
           currentGameCaptainId={subModal.gameCaptainId}
+          side={subModal.side}
+          color={subModal.color}
+          serving={subModal.serving}
           onClose={() => setSubModal(null)}
           onConfirm={confirmSubstitution}
           loading={loading}
@@ -860,7 +966,7 @@ function LiveScoring({
 
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" disabled={loading} onClick={addNextSet}>
-          Add Next Set
+          End Set
         </Button>
         <Button variant="secondary" disabled={loading} onClick={finishMatch}>
           End Match
@@ -878,7 +984,9 @@ function LiveScoring({
               ? currentSetRow?.homeGameCaptainId ?? null
               : currentSetRow?.awayGameCaptainId ?? null;
           const teamSubstitutions =
-            match.substitutions?.filter((s) => s.teamId === teamId) ?? [];
+            match.substitutions?.filter(
+              (s) => s.teamId === teamId && s.setNumber === match.currentSet
+            ) ?? [];
 
           return (
             <CourtRotation
@@ -892,7 +1000,16 @@ function LiveScoring({
               gameCaptainId={gameCaptainId}
               substitutions={teamSubstitutions}
               onOpenSubstitute={() =>
-                openSubstitution(team, teamId, teamName, players, gameCaptainId)
+                openSubstitution(
+                  team,
+                  teamId,
+                  teamName,
+                  players,
+                  gameCaptainId,
+                  side,
+                  color,
+                  serving
+                )
               }
             />
           );
