@@ -393,7 +393,7 @@ export default function MatchScorerPage() {
             {match.homeTeam?.name} vs {match.awayTeam?.name}
           </h1>
           {(when || match.location) && (
-            <div className="mt-2 space-y-1 text-center text-sm text-slate-600">
+            <div className="mt-2 space-y-1 text-sm text-slate-600">
               {when && <p>{when}</p>}
               {match.location && (
                 <p>
