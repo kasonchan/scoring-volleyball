@@ -8,14 +8,19 @@ import { CurrentTimeClock } from "@/components/CurrentTimeClock";
 import { Badge, Button, Card } from "@/components/ui";
 import { Match, Player, ServingTeam, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
-const POSITION_LABELS = ["P1 (Back Right)", "P2 (Front Right)", "P3 (Front Center)", "P4 (Front Left)", "P5 (Back Left)", "P6 (Back Center)"];
+const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
+const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
 
 function RotationSetup({
   match,
   onComplete,
+  courtSwapped,
+  onSwitchCourt,
 }: {
   match: Match;
   onComplete: (m: Match) => void;
+  courtSwapped: boolean;
+  onSwitchCourt: () => void;
 }) {
   const [homeRotation, setHomeRotation] = useState<(string | null)[]>(Array(6).fill(null));
   const [awayRotation, setAwayRotation] = useState<(string | null)[]>(Array(6).fill(null));
@@ -66,36 +71,60 @@ function RotationSetup({
     team: "home" | "away",
     teamName: string,
     players: Player[],
-    rotation: (string | null)[]
+    rotation: (string | null)[],
+    side: "left" | "right",
+    color: "blue" | "teal"
   ) {
+    const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
+    const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
+    const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
+
     return (
-      <div>
-        <h3 className="mb-3 font-semibold text-slate-900">{teamName}</h3>
-        <div className="space-y-2">
-          {POSITION_LABELS.map((label, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <span className="w-36 shrink-0 text-xs text-slate-500">{label}</span>
-              <select
-                value={rotation[i] ?? ""}
-                onChange={(e) => setPlayer(team, i, e.target.value)}
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
-              >
-                <option value="">Select player...</option>
-                {players.map((p) => {
-                  const usedElsewhere = rotation.includes(p.id) && rotation[i] !== p.id;
-                  return (
-                    <option key={p.id} value={p.id} disabled={usedElsewhere}>
-                      #{p.jerseyNumber} {p.name}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          ))}
+      <div className={`rounded-xl border p-4 ${bg}`}>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className={`font-semibold ${accent}`}>{teamName}</h3>
+          <Button variant="secondary" type="button" onClick={onSwitchCourt} className="shrink-0 text-xs">
+            Switch Court
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {positions.map((pos) => {
+            const i = pos - 1;
+            return (
+              <div key={pos} className="rounded-lg bg-white p-2 shadow-sm">
+                <div className="mb-1 text-xs text-slate-400">P{pos}</div>
+                <select
+                  value={rotation[i] ?? ""}
+                  onChange={(e) => setPlayer(team, i, e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-orange-500 focus:outline-none"
+                >
+                  <option value="">Select...</option>
+                  {players.map((p) => {
+                    const usedElsewhere = rotation.includes(p.id) && rotation[i] !== p.id;
+                    return (
+                      <option key={p.id} value={p.id} disabled={usedElsewhere}>
+                        #{p.jerseyNumber} {p.name}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   }
+
+  const courtTeams = courtSwapped
+    ? ([
+        { team: "away" as const, side: "left" as const },
+        { team: "home" as const, side: "right" as const },
+      ] as const)
+    : ([
+        { team: "home" as const, side: "left" as const },
+        { team: "away" as const, side: "right" as const },
+      ] as const);
 
   return (
     <Card>
@@ -134,9 +163,18 @@ function RotationSetup({
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        {renderTeamRotation("home", match.homeTeam?.name ?? "Home", match.homeTeam?.players ?? [], homeRotation)}
-        {renderTeamRotation("away", match.awayTeam?.name ?? "Away", match.awayTeam?.players ?? [], awayRotation)}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {courtTeams.map(({ team, side }) => {
+          const isHome = team === "home";
+          return renderTeamRotation(
+            team,
+            isHome ? match.homeTeam?.name ?? "Home" : match.awayTeam?.name ?? "Away",
+            isHome ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [],
+            isHome ? homeRotation : awayRotation,
+            side,
+            isHome ? "blue" : "teal"
+          );
+        })}
       </div>
 
       {error && (
@@ -149,9 +187,6 @@ function RotationSetup({
     </Card>
   );
 }
-
-const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
-const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
 
 function SetHistory({ match }: { match: Match }) {
   const completedSets = match.sets?.filter((s) => s.status === "completed") ?? [];
@@ -222,9 +257,13 @@ function CourtRotation({
 function LiveScoring({
   match,
   onUpdate,
+  courtSwapped,
+  onSwitchCourt,
 }: {
   match: Match;
   onUpdate: (m: Match) => void;
+  courtSwapped: boolean;
+  onSwitchCourt: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const summary = getMatchSummary(match);
@@ -298,9 +337,52 @@ function LiveScoring({
 
   if (match.status === "setup") {
     return (
-      <RotationSetup match={match} onComplete={onUpdate} />
+      <RotationSetup
+        match={match}
+        onComplete={onUpdate}
+        courtSwapped={courtSwapped}
+        onSwitchCourt={onSwitchCourt}
+      />
     );
   }
+
+  const courtTeams = courtSwapped
+    ? ([
+        {
+          team: "away" as const,
+          side: "left" as const,
+          teamId: match.awayTeamId,
+          teamName: match.awayTeam?.name ?? "Away",
+          color: "teal" as const,
+          serving: match.servingTeam === "away",
+        },
+        {
+          team: "home" as const,
+          side: "right" as const,
+          teamId: match.homeTeamId,
+          teamName: match.homeTeam?.name ?? "Home",
+          color: "blue" as const,
+          serving: match.servingTeam === "home",
+        },
+      ] as const)
+    : ([
+        {
+          team: "home" as const,
+          side: "left" as const,
+          teamId: match.homeTeamId,
+          teamName: match.homeTeam?.name ?? "Home",
+          color: "blue" as const,
+          serving: match.servingTeam === "home",
+        },
+        {
+          team: "away" as const,
+          side: "right" as const,
+          teamId: match.awayTeamId,
+          teamName: match.awayTeam?.name ?? "Away",
+          color: "teal" as const,
+          serving: match.servingTeam === "away",
+        },
+      ] as const);
 
   return (
     <div className="space-y-6">
@@ -352,20 +434,16 @@ function LiveScoring({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <CourtRotation
-          teamName={match.homeTeam?.name ?? "Home"}
-          rotations={match.rotations?.filter((r) => r.teamId === match.homeTeamId)}
-          serving={match.servingTeam === "home"}
-          color="blue"
-          side="left"
-        />
-        <CourtRotation
-          teamName={match.awayTeam?.name ?? "Away"}
-          rotations={match.rotations?.filter((r) => r.teamId === match.awayTeamId)}
-          serving={match.servingTeam === "away"}
-          color="teal"
-          side="right"
-        />
+        {courtTeams.map(({ teamId, teamName, color, side, serving }) => (
+          <CourtRotation
+            key={teamId}
+            teamName={teamName}
+            rotations={match.rotations?.filter((r) => r.teamId === teamId)}
+            serving={serving}
+            color={color}
+            side={side}
+          />
+        ))}
       </div>
     </div>
   );
@@ -377,6 +455,7 @@ export default function MatchScorerPage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [courtSwapped, setCourtSwapped] = useState(false);
 
   const loadMatch = useCallback(() => {
     fetch(`/api/matches/${matchId}`)
@@ -450,9 +529,19 @@ export default function MatchScorerPage() {
         </div>
 
         {needsRotation && match.status === "scheduled" ? (
-          <RotationSetup match={match} onComplete={setMatch} />
+          <RotationSetup
+            match={match}
+            onComplete={setMatch}
+            courtSwapped={courtSwapped}
+            onSwitchCourt={() => setCourtSwapped((s) => !s)}
+          />
         ) : (
-          <LiveScoring match={match} onUpdate={setMatch} />
+          <LiveScoring
+            match={match}
+            onUpdate={setMatch}
+            courtSwapped={courtSwapped}
+            onSwitchCourt={() => setCourtSwapped((s) => !s)}
+          />
         )}
       </main>
     </>
