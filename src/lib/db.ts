@@ -115,6 +115,9 @@ function migrateSchema(database: Database.Database) {
   if (!setNames.has("away_game_captain_id")) {
     database.exec("ALTER TABLE match_sets ADD COLUMN away_game_captain_id TEXT REFERENCES players(id)");
   }
+  if (!setNames.has("court_swapped")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN court_swapped INTEGER NOT NULL DEFAULT 0");
+  }
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS substitutions (

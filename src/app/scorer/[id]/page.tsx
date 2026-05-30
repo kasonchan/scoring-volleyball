@@ -158,6 +158,7 @@ function RotationSetup({
           servingTeam,
           homeGameCaptainId: homeGameCaptain,
           awayGameCaptainId: awayGameCaptain,
+          courtSwapped,
         }),
       });
       const data = await res.json();
@@ -901,6 +902,10 @@ function LiveScoring({
   );
 }
 
+function getCourtSwappedForMatch(m: Match): boolean {
+  return m.sets?.find((s) => s.setNumber === m.currentSet)?.courtSwapped ?? false;
+}
+
 export default function MatchScorerPage() {
   const params = useParams();
   const matchId = params.id as string;
@@ -909,16 +914,37 @@ export default function MatchScorerPage() {
   const [error, setError] = useState("");
   const [courtSwapped, setCourtSwapped] = useState(false);
 
+  const applyMatch = useCallback((m: Match) => {
+    setMatch(m);
+    setCourtSwapped(getCourtSwappedForMatch(m));
+  }, []);
+
+  const handleSwitchCourt = useCallback(async () => {
+    const next = !courtSwapped;
+    try {
+      const res = await fetch(`/api/matches/${matchId}/court`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtSwapped: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      applyMatch(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to switch court");
+    }
+  }, [matchId, courtSwapped, applyMatch]);
+
   const loadMatch = useCallback(() => {
     fetch(`/api/matches/${matchId}`)
       .then((r) => {
         if (!r.ok) throw new Error("Match not found");
         return r.json();
       })
-      .then(setMatch)
+      .then(applyMatch)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [matchId]);
+  }, [matchId, applyMatch]);
 
   useEffect(() => {
     loadMatch();
@@ -983,16 +1009,16 @@ export default function MatchScorerPage() {
         {needsRotation && match.status === "scheduled" ? (
           <RotationSetup
             match={match}
-            onComplete={setMatch}
+            onComplete={applyMatch}
             courtSwapped={courtSwapped}
-            onSwitchCourt={() => setCourtSwapped((s) => !s)}
+            onSwitchCourt={handleSwitchCourt}
           />
         ) : (
           <LiveScoring
             match={match}
-            onUpdate={setMatch}
+            onUpdate={applyMatch}
             courtSwapped={courtSwapped}
-            onSwitchCourt={() => setCourtSwapped((s) => !s)}
+            onSwitchCourt={handleSwitchCourt}
           />
         )}
       </main>

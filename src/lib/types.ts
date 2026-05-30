@@ -33,6 +33,7 @@ export interface MatchSet {
   status: SetStatus;
   homeGameCaptainId?: string | null;
   awayGameCaptainId?: string | null;
+  courtSwapped?: boolean;
 }
 
 export interface RotationEntry {
@@ -106,6 +107,7 @@ export interface SetRotationInput {
   servingTeam: ServingTeam;
   homeGameCaptainId?: string | null;
   awayGameCaptainId?: string | null;
+  courtSwapped?: boolean;
 }
 
 export interface SubstituteInput {

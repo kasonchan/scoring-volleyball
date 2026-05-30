@@ -64,6 +64,7 @@ function rowToSet(row: Record<string, unknown>): MatchSet {
     status: row.status as MatchSet["status"],
     homeGameCaptainId: (row.home_game_captain_id as string | null) ?? null,
     awayGameCaptainId: (row.away_game_captain_id as string | null) ?? null,
+    courtSwapped: Boolean(row.court_swapped),
   };
 }
 
@@ -106,6 +107,25 @@ function updateSetGameCaptains(
   db.prepare(
     "UPDATE match_sets SET home_game_captain_id = ?, away_game_captain_id = ? WHERE match_id = ? AND set_number = ?"
   ).run(homeGameCaptainId, awayGameCaptainId, matchId, setNumber);
+}
+
+function ensureSetRow(matchId: string, setNumber: number, courtSwapped = false) {
+  const db = getDb();
+  const existingSet = db
+    .prepare("SELECT id FROM match_sets WHERE match_id = ? AND set_number = ?")
+    .get(matchId, setNumber);
+  if (!existingSet) {
+    db.prepare(
+      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, court_swapped) VALUES (?, ?, ?, 0, 0, ?)"
+    ).run(uuidv4(), matchId, setNumber, courtSwapped ? 1 : 0);
+  }
+}
+
+function updateSetCourtSwapped(matchId: string, setNumber: number, courtSwapped: boolean) {
+  const db = getDb();
+  db.prepare(
+    "UPDATE match_sets SET court_swapped = ? WHERE match_id = ? AND set_number = ?"
+  ).run(courtSwapped ? 1 : 0, matchId, setNumber);
 }
 
 function getOnCourtPlayerIds(matchId: string, teamId: string, setNumber: number): string[] {
@@ -402,6 +422,7 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
     input.homeGameCaptainId ?? null,
     input.awayGameCaptainId ?? null
   );
+  const courtSwapped = input.courtSwapped ?? false;
 
   db.prepare("DELETE FROM rotations WHERE match_id = ? AND set_number = ?").run(matchId, setNumber);
 
@@ -422,15 +443,30 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
 
   if (!existingSet) {
     db.prepare(
-      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id) VALUES (?, ?, ?, 0, 0, ?, ?)"
-    ).run(uuidv4(), matchId, setNumber, homeGc, awayGc);
+      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id, court_swapped) VALUES (?, ?, ?, 0, 0, ?, ?, ?)"
+    ).run(uuidv4(), matchId, setNumber, homeGc, awayGc, courtSwapped ? 1 : 0);
   } else {
     updateSetGameCaptains(matchId, setNumber, homeGc, awayGc);
+    updateSetCourtSwapped(matchId, setNumber, courtSwapped);
   }
 
   db.prepare(
     "UPDATE matches SET status = 'in_progress', serving_team = ? WHERE id = ?"
   ).run(input.servingTeam, matchId);
+
+  return getMatch(matchId)!;
+}
+
+export function setSetCourtSwapped(matchId: string, courtSwapped: boolean): Match {
+  const match = getMatch(matchId);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "scheduled" && match.status !== "setup") {
+    throw new Error("Court layout can only be changed during set setup");
+  }
+
+  const setNumber = match.currentSet;
+  ensureSetRow(matchId, setNumber, courtSwapped);
+  updateSetCourtSwapped(matchId, setNumber, courtSwapped);
 
   return getMatch(matchId)!;
 }
