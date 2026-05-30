@@ -18,21 +18,23 @@ import {
   rotateClockwise,
 } from "./types";
 
+function normalizePlayerRole(role: unknown): PlayerRole | null {
+  return role === "team_captain" || role === "libero" ? role : null;
+}
+
 function rowToPlayer(row: Record<string, unknown>): Player {
   return {
     id: row.id as string,
     teamId: row.team_id as string,
     name: row.name as string,
     jerseyNumber: row.jersey_number as number,
-    role: (row.role as PlayerRole | null) ?? null,
+    role: normalizePlayerRole(row.role),
   };
 }
 
 function validatePlayerRoles(players: { role?: PlayerRole | null }[]) {
   const teamCaptains = players.filter((p) => p.role === "team_captain").length;
-  const gameCaptains = players.filter((p) => p.role === "game_captain").length;
   if (teamCaptains > 1) throw new Error("Only one Team Captain can be assigned");
-  if (gameCaptains > 1) throw new Error("Only one Game Captain can be assigned");
 }
 
 function rowToTeam(row: Record<string, unknown>, players: Player[] = []): Team {
@@ -232,7 +234,7 @@ function getMatchRotations(matchId: string, setNumber: number): RotationEntry[] 
       teamId: row.p_team_id as string,
       name: row.name as string,
       jerseyNumber: row.jersey_number as number,
-      role: (row.role as PlayerRole | null) ?? null,
+      role: normalizePlayerRole(row.role),
     })
   );
 }

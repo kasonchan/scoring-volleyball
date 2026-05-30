@@ -2,11 +2,10 @@ export type MatchStatus = "scheduled" | "setup" | "in_progress" | "completed";
 export type SetStatus = "in_progress" | "completed";
 export type ServingTeam = "home" | "away";
 
-export type PlayerRole = "team_captain" | "game_captain" | "libero";
+export type PlayerRole = "team_captain" | "libero";
 
 export const PLAYER_ROLE_LABELS: Record<PlayerRole, string> = {
   team_captain: "Team Captain",
-  game_captain: "Game Captain",
   libero: "Libero",
 };
 

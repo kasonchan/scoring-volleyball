@@ -16,7 +16,7 @@ export const emptyPlayerRow = (): PlayerRow => ({
   role: null,
 });
 
-const EXCLUSIVE_ROLES: PlayerRole[] = ["team_captain", "game_captain"];
+const EXCLUSIVE_ROLES: PlayerRole[] = ["team_captain"];
 
 interface TeamPlayerFieldsProps {
   players: PlayerRow[];
@@ -65,7 +65,7 @@ export function TeamPlayerFields({ players, onChange }: TeamPlayerFieldsProps) {
         </Button>
       </div>
       <p className="mb-3 text-xs text-slate-500">
-        Assign one Team Captain and one Game Captain per team. Multiple players can be Libero.
+        Assign one Team Captain per team. Multiple players can be Libero.
       </p>
       <div className="space-y-3">
         {players.map((player, index) => (
