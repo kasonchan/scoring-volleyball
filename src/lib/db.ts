@@ -20,6 +20,7 @@ function initSchema(database: Database.Database) {
       team_id TEXT NOT NULL,
       name TEXT NOT NULL,
       jersey_number INTEGER NOT NULL,
+      role TEXT,
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
     );
 
@@ -83,6 +84,12 @@ function migrateSchema(database: Database.Database) {
   }
   if (!names.has("scheduled_at")) {
     database.exec("ALTER TABLE matches ADD COLUMN scheduled_at TEXT");
+  }
+
+  const playerColumns = database.prepare("PRAGMA table_info(players)").all() as { name: string }[];
+  const playerNames = new Set(playerColumns.map((c) => c.name));
+  if (!playerNames.has("role")) {
+    database.exec("ALTER TABLE players ADD COLUMN role TEXT");
   }
 }
 

@@ -3,51 +3,32 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
+import {
+  PlayerRow,
+  TeamPlayerFields,
+  emptyPlayerRow,
+  playerRowsToPayload,
+} from "@/components/TeamPlayerFields";
 import { Button, Card, PageHeader } from "@/components/ui";
-
-interface PlayerRow {
-  name: string;
-  jerseyNumber: string;
-}
 
 export default function NewTeamPage() {
   const [teamName, setTeamName] = useState("");
-  const [players, setPlayers] = useState<PlayerRow[]>([
-    { name: "", jerseyNumber: "" },
-    { name: "", jerseyNumber: "" },
-    { name: "", jerseyNumber: "" },
-    { name: "", jerseyNumber: "" },
-    { name: "", jerseyNumber: "" },
-    { name: "", jerseyNumber: "" },
-  ]);
+  const [players, setPlayers] = useState<PlayerRow[]>(Array.from({ length: 6 }, emptyPlayerRow));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  function addPlayer() {
-    setPlayers([...players, { name: "", jerseyNumber: "" }]);
-  }
-
-  function removePlayer(index: number) {
-    setPlayers(players.filter((_, i) => i !== index));
-  }
-
-  function updatePlayer(index: number, field: keyof PlayerRow, value: string) {
-    const updated = [...players];
-    updated[index] = { ...updated[index], [field]: value };
-    setPlayers(updated);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const validPlayers = players
-      .filter((p) => p.name.trim())
-      .map((p) => ({
-        name: p.name.trim(),
-        jerseyNumber: parseInt(p.jerseyNumber, 10),
-      }));
+    const validPlayers = playerRowsToPayload(players);
+
+    if (validPlayers.length === 0) {
+      setError("At least one player is required");
+      setLoading(false);
+      return;
+    }
 
     if (validPlayers.some((p) => isNaN(p.jerseyNumber))) {
       setError("All players must have a valid jersey number");
@@ -77,7 +58,7 @@ export default function NewTeamPage() {
       <main className="mx-auto max-w-2xl flex-1 px-4 py-8">
         <PageHeader
           title="Create Team"
-          description="Enter the team name and roster with jersey numbers."
+          description="Enter the team name, roster, jersey numbers, and player roles."
         />
 
         <Card>
@@ -94,45 +75,7 @@ export default function NewTeamPage() {
               />
             </div>
 
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <label className="block text-sm font-medium text-slate-700">Players</label>
-                <Button type="button" variant="secondary" onClick={addPlayer}>
-                  + Add Player
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {players.map((player, index) => (
-                  <div key={index} className="flex gap-3">
-                    <input
-                      type="text"
-                      value={player.name}
-                      onChange={(e) => updatePlayer(index, "name", e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                      placeholder="Player name"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      max="99"
-                      value={player.jerseyNumber}
-                      onChange={(e) => updatePlayer(index, "jerseyNumber", e.target.value)}
-                      className="w-24 rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                      placeholder="#"
-                    />
-                    {players.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePlayer(index)}
-                        className="rounded-lg px-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <TeamPlayerFields players={players} onChange={setPlayers} />
 
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>

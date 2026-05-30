@@ -2,11 +2,20 @@ export type MatchStatus = "scheduled" | "setup" | "in_progress" | "completed";
 export type SetStatus = "in_progress" | "completed";
 export type ServingTeam = "home" | "away";
 
+export type PlayerRole = "team_captain" | "game_captain" | "libero";
+
+export const PLAYER_ROLE_LABELS: Record<PlayerRole, string> = {
+  team_captain: "Team Captain",
+  game_captain: "Game Captain",
+  libero: "Libero",
+};
+
 export interface Player {
   id: string;
   teamId: string;
   name: string;
   jerseyNumber: number;
+  role: PlayerRole | null;
 }
 
 export interface Team {
@@ -54,12 +63,12 @@ export interface Match {
 
 export interface CreateTeamInput {
   name: string;
-  players: { name: string; jerseyNumber: number }[];
+  players: { name: string; jerseyNumber: number; role?: PlayerRole | null }[];
 }
 
 export interface UpdateTeamInput {
   name: string;
-  players: { id?: string; name: string; jerseyNumber: number }[];
+  players: { id?: string; name: string; jerseyNumber: number; role?: PlayerRole | null }[];
 }
 
 export interface CreateMatchInput {

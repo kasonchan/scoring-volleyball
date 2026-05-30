@@ -10,6 +10,7 @@ import {
   Match,
   MatchSet,
   Player,
+  PlayerRole,
   RotationEntry,
   ServingTeam,
   SetRotationInput,
@@ -26,7 +27,15 @@ function rowToPlayer(row: Record<string, unknown>): Player {
     teamId: row.team_id as string,
     name: row.name as string,
     jerseyNumber: row.jersey_number as number,
+    role: (row.role as PlayerRole | null) ?? null,
   };
+}
+
+function validatePlayerRoles(players: { role?: PlayerRole | null }[]) {
+  const teamCaptains = players.filter((p) => p.role === "team_captain").length;
+  const gameCaptains = players.filter((p) => p.role === "game_captain").length;
+  if (teamCaptains > 1) throw new Error("Only one Team Captain can be assigned");
+  if (gameCaptains > 1) throw new Error("Only one Game Captain can be assigned");
 }
 
 function rowToTeam(row: Record<string, unknown>, players: Player[] = []): Team {
@@ -87,13 +96,14 @@ export function getTeam(id: string): Team | null {
 
 export function createTeam(input: CreateTeamInput): Team {
   const db = getDb();
+  validatePlayerRoles(input.players);
   const id = uuidv4();
   db.prepare("INSERT INTO teams (id, name) VALUES (?, ?)").run(id, input.name.trim());
   const insertPlayer = db.prepare(
-    "INSERT INTO players (id, team_id, name, jersey_number) VALUES (?, ?, ?, ?)"
+    "INSERT INTO players (id, team_id, name, jersey_number, role) VALUES (?, ?, ?, ?, ?)"
   );
   for (const p of input.players) {
-    insertPlayer.run(uuidv4(), id, p.name.trim(), p.jerseyNumber);
+    insertPlayer.run(uuidv4(), id, p.name.trim(), p.jerseyNumber, p.role ?? null);
   }
   return getTeam(id)!;
 }
@@ -105,6 +115,7 @@ export function updateTeam(id: string, input: UpdateTeamInput): Team {
 
   if (!input.name?.trim()) throw new Error("Team name is required");
   if (!input.players?.length) throw new Error("At least one player is required");
+  validatePlayerRoles(input.players);
 
   db.prepare("UPDATE teams SET name = ? WHERE id = ?").run(input.name.trim(), id);
 
@@ -112,21 +123,22 @@ export function updateTeam(id: string, input: UpdateTeamInput): Team {
   const submittedIds = new Set(input.players.filter((p) => p.id).map((p) => p.id!));
 
   const updatePlayer = db.prepare(
-    "UPDATE players SET name = ?, jersey_number = ? WHERE id = ? AND team_id = ?"
+    "UPDATE players SET name = ?, jersey_number = ?, role = ? WHERE id = ? AND team_id = ?"
   );
   const insertPlayer = db.prepare(
-    "INSERT INTO players (id, team_id, name, jersey_number) VALUES (?, ?, ?, ?)"
+    "INSERT INTO players (id, team_id, name, jersey_number, role) VALUES (?, ?, ?, ?, ?)"
   );
 
   for (const p of input.players) {
     const name = p.name.trim();
     if (!name) throw new Error("All players must have a name");
     if (isNaN(p.jerseyNumber)) throw new Error("All players must have a valid jersey number");
+    const role = p.role ?? null;
 
     if (p.id && existingIds.has(p.id)) {
-      updatePlayer.run(name, p.jerseyNumber, p.id, id);
+      updatePlayer.run(name, p.jerseyNumber, role, p.id, id);
     } else {
-      insertPlayer.run(uuidv4(), id, name, p.jerseyNumber);
+      insertPlayer.run(uuidv4(), id, name, p.jerseyNumber, role);
     }
   }
 
@@ -214,7 +226,7 @@ function getMatchRotations(matchId: string, setNumber: number): RotationEntry[] 
   const db = getDb();
   const rows = db
     .prepare(
-      "SELECT r.*, p.name, p.jersey_number, p.team_id as p_team_id FROM rotations r JOIN players p ON r.player_id = p.id WHERE r.match_id = ? AND r.set_number = ? ORDER BY r.position"
+      "SELECT r.*, p.name, p.jersey_number, p.role, p.team_id as p_team_id FROM rotations r JOIN players p ON r.player_id = p.id WHERE r.match_id = ? AND r.set_number = ? ORDER BY r.position"
     )
     .all(matchId, setNumber) as Record<string, unknown>[];
   return rows.map((row) =>
@@ -223,6 +235,7 @@ function getMatchRotations(matchId: string, setNumber: number): RotationEntry[] 
       teamId: row.p_team_id as string,
       name: row.name as string,
       jerseyNumber: row.jersey_number as number,
+      role: (row.role as PlayerRole | null) ?? null,
     })
   );
 }

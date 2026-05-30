@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
-import { Team } from "@/lib/types";
+import { Team, PLAYER_ROLE_LABELS } from "@/lib/types";
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -75,6 +75,11 @@ export default function TeamsPage() {
                           {p.jerseyNumber}
                         </span>
                         <span className="text-slate-800">{p.name}</span>
+                        {p.role && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                            {PLAYER_ROLE_LABELS[p.role]}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
