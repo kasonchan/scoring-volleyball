@@ -12,7 +12,7 @@ import {
   needsGameCaptainAssignment,
 } from "@/lib/captains";
 import { getAllowedSubstitutesIn } from "@/lib/substitutions";
-import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, formatMatchDateTime, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
+import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, formatMatchDateTime, formatSetDuration, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
 
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
@@ -338,11 +338,17 @@ function SetHistory({ match }: { match: Match }) {
     <div className="mt-4 text-center">
       <h3 className="mb-2 text-sm font-medium text-slate-500">Set History</h3>
       <div className="flex flex-wrap justify-center gap-2">
-        {completedSets.map((s) => (
-          <div key={s.id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
-            Set {s.setNumber}: {s.homeScore} – {s.awayScore}
-          </div>
-        ))}
+        {completedSets.map((s) => {
+          const duration = formatSetDuration(s.startedAt, s.endedAt);
+          return (
+            <div key={s.id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
+              <div>
+                Set {s.setNumber}: {s.homeScore} – {s.awayScore}
+              </div>
+              {duration && <div className="text-xs text-slate-500">{duration}</div>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

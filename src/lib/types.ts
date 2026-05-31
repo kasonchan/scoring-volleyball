@@ -34,6 +34,8 @@ export interface MatchSet {
   homeGameCaptainId?: string | null;
   awayGameCaptainId?: string | null;
   courtSwapped?: boolean;
+  startedAt?: string | null;
+  endedAt?: string | null;
 }
 
 export interface RotationEntry {
@@ -143,6 +145,26 @@ export interface Location {
 export interface LocationInput {
   name: string;
   address: string;
+}
+
+export function formatSetDuration(
+  startedAt: string | null | undefined,
+  endedAt: string | null | undefined
+): string | null {
+  if (!startedAt || !endedAt) return null;
+  const start = new Date(startedAt).getTime();
+  const end = new Date(endedAt).getTime();
+  if (isNaN(start) || isNaN(end) || end <= start) return null;
+
+  const totalSeconds = Math.floor((end - start) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function getMatchSummary(match: Match) {

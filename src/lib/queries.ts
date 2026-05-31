@@ -68,7 +68,23 @@ function rowToSet(row: Record<string, unknown>): MatchSet {
     homeGameCaptainId: (row.home_game_captain_id as string | null) ?? null,
     awayGameCaptainId: (row.away_game_captain_id as string | null) ?? null,
     courtSwapped: Boolean(row.court_swapped),
+    startedAt: (row.started_at as string | null) ?? null,
+    endedAt: (row.ended_at as string | null) ?? null,
   };
+}
+
+function markSetStarted(matchId: string, setNumber: number) {
+  const db = getDb();
+  db.prepare(
+    "UPDATE match_sets SET started_at = datetime('now') WHERE match_id = ? AND set_number = ? AND started_at IS NULL"
+  ).run(matchId, setNumber);
+}
+
+function markSetEnded(matchId: string, setNumber: number) {
+  const db = getDb();
+  db.prepare(
+    "UPDATE match_sets SET ended_at = datetime('now') WHERE match_id = ? AND set_number = ? AND ended_at IS NULL"
+  ).run(matchId, setNumber);
 }
 
 function validateSetGameCaptains(
@@ -478,6 +494,8 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
     "UPDATE matches SET status = 'in_progress', serving_team = ? WHERE id = ?"
   ).run(input.servingTeam, matchId);
 
+  markSetStarted(matchId, setNumber);
+
   return getMatch(matchId)!;
 }
 
@@ -642,6 +660,7 @@ export function startNextSet(matchId: string): Match {
   if (match.status !== "in_progress") throw new Error("Match is not in progress");
 
   const setNumber = match.currentSet;
+  markSetEnded(matchId, setNumber);
   db.prepare(
     "UPDATE match_sets SET status = 'completed' WHERE match_id = ? AND set_number = ?"
   ).run(matchId, setNumber);
@@ -664,6 +683,7 @@ export function endMatch(matchId: string): Match {
   }
 
   if (match.status === "in_progress") {
+    markSetEnded(matchId, match.currentSet);
     db.prepare(
       "UPDATE match_sets SET status = 'completed' WHERE match_id = ? AND set_number = ?"
     ).run(matchId, match.currentSet);

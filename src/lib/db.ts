@@ -128,6 +128,12 @@ function migrateSchema(database: Database.Database) {
   if (!setNames.has("court_swapped")) {
     database.exec("ALTER TABLE match_sets ADD COLUMN court_swapped INTEGER NOT NULL DEFAULT 0");
   }
+  if (!setNames.has("started_at")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN started_at TEXT");
+  }
+  if (!setNames.has("ended_at")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN ended_at TEXT");
+  }
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS substitutions (
