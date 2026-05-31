@@ -184,8 +184,9 @@ export function getMatchSummary(match: Match) {
   };
 }
 
+/** FIVB clockwise: P2→P1, P3→P2, …, P1→P6 (indexed P1..P6 as rotation[0]..rotation[5]). */
 export function rotateClockwise(rotation: string[]): string[] {
-  return [rotation[5], rotation[0], rotation[1], rotation[2], rotation[3], rotation[4]];
+  return [rotation[1], rotation[2], rotation[3], rotation[4], rotation[5], rotation[0]];
 }
 
 export function formatMatchDateTime(iso: string | null): string | null {
