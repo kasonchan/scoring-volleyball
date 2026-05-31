@@ -671,6 +671,7 @@ function SubstitutionModal({
   players,
   substitutions,
   currentGameCaptainId,
+  setLiberoId,
   side,
   color,
   serving,
@@ -684,6 +685,7 @@ function SubstitutionModal({
   players: Player[];
   substitutions: Substitution[];
   currentGameCaptainId: string | null;
+  setLiberoId: string | null;
   side: "left" | "right";
   color: "blue" | "teal";
   serving: boolean;
@@ -705,7 +707,7 @@ function SubstitutionModal({
   const currentPlayer = currentEntry?.player;
   const bench = benchPlayers(players, onCourtPlayerIds);
   const allowedBench = currentPlayer
-    ? getAllowedSubstitutesIn(currentPlayer.id, bench, substitutions)
+    ? getAllowedSubstitutesIn(currentPlayer.id, bench, substitutions, setLiberoId)
     : [];
 
   const projectedOnCourt =
@@ -746,6 +748,7 @@ function SubstitutionModal({
         <h3 className="text-lg font-semibold text-slate-900">Substitution — {teamName}</h3>
         <p className="mt-1 text-sm text-slate-600">
           Paired substitutions only: once two players swap, only they can substitute for each other.
+          Regular subs use non-libero bench players.
         </p>
         <div className="mt-4 space-y-4">
           <SubstitutionCourtGrid
@@ -765,7 +768,9 @@ function SubstitutionModal({
                 Substitute in for #{currentPlayer.jerseyNumber} {currentPlayer.name}
               </label>
               {allowedBench.length === 0 ? (
-                <p className="text-sm text-slate-500">No eligible substitute available for this player.</p>
+                <p className="text-sm text-slate-500">
+                  No eligible non-libero substitute available for this player.
+                </p>
               ) : (
                 <div className="space-y-1">
                   {allowedBench.map((p) => (
@@ -867,6 +872,7 @@ function LiveScoring({
     rotations: Match["rotations"];
     substitutions: Substitution[];
     gameCaptainId: string | null;
+    setLiberoId: string | null;
     side: "left" | "right";
     color: "blue" | "teal";
     serving: boolean;
@@ -958,6 +964,7 @@ function LiveScoring({
     teamName: string,
     players: Player[],
     gameCaptainId: string | null,
+    setLiberoId: string | null,
     side: "left" | "right",
     color: "blue" | "teal",
     serving: boolean
@@ -976,6 +983,7 @@ function LiveScoring({
       rotations: teamRotations,
       substitutions: teamSubstitutions,
       gameCaptainId,
+      setLiberoId,
       side,
       color,
       serving,
@@ -1084,6 +1092,7 @@ function LiveScoring({
           players={subModal.players}
           substitutions={subModal.substitutions}
           currentGameCaptainId={subModal.gameCaptainId}
+          setLiberoId={subModal.setLiberoId}
           side={subModal.side}
           color={subModal.color}
           serving={subModal.serving}
@@ -1184,6 +1193,7 @@ function LiveScoring({
                   teamName,
                   players,
                   gameCaptainId,
+                  setLiberoId,
                   side,
                   color,
                   serving

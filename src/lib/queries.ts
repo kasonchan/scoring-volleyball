@@ -594,9 +594,11 @@ export function substitutePlayer(matchId: string, input: SubstituteInput): Match
     throw new Error("Substitute player is already on court");
   }
 
+  const setLiberoId =
+    input.team === "home" ? currentSet.homeLiberoId ?? null : currentSet.awayLiberoId ?? null;
   const setSubstitutions = getMatchSubstitutions(matchId, setNumber).filter((s) => s.teamId === teamId);
   const bench = players.filter((p) => !onCourtIds.includes(p.id));
-  const allowed = getAllowedSubstitutesIn(playerOutId, bench, setSubstitutions);
+  const allowed = getAllowedSubstitutesIn(playerOutId, bench, setSubstitutions, setLiberoId);
   if (!allowed.some((p) => p.id === input.playerInId)) {
     const partner = allowed[0];
     if (partner) {
