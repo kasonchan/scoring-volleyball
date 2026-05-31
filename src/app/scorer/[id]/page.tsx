@@ -1833,7 +1833,7 @@ function LiveScoring({
       <>
         {compact && (
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
-            <CurrentTimeClock />
+            <CurrentTimeClock className="mx-auto w-fit" />
             <CompletedSetsSummary match={match} compact />
           </div>
         )}
@@ -2170,8 +2170,12 @@ export default function MatchScorerPage() {
             >
               {match.homeTeam?.name} vs {match.awayTeam?.name}
             </h1>
-            {!isLive && (when || match.location) && (
-              <div className="mt-2 space-y-1 text-sm text-slate-600">
+            {(when || match.location) && (
+              <div
+                className={`mt-2 space-y-1 text-slate-600 ${
+                  isLive && compactMode ? "text-xs" : "text-sm"
+                }`}
+              >
                 {when && <p>{when}</p>}
                 {match.location && (
                   <p>
@@ -2182,8 +2186,8 @@ export default function MatchScorerPage() {
               </div>
             )}
             {showClockInHeader && (
-              <div className="mt-2 text-center sm:text-left">
-                <CurrentTimeClock />
+              <div className="mt-2 text-center">
+                <CurrentTimeClock className="mx-auto w-fit" />
                 <CompletedSetsSummary match={match} />
               </div>
             )}

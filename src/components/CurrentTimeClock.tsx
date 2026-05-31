@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function CurrentTimeClock() {
+export function CurrentTimeClock({ className = "" }: { className?: string }) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export function CurrentTimeClock() {
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   return (
-    <p className="font-mono text-sm tabular-nums text-slate-500">
+    <p className={`font-mono text-sm tabular-nums text-slate-500 ${className}`}>
       {time}
     </p>
   );
