@@ -22,11 +22,13 @@ function TeamRosterList({
   color,
   onCourtPositionByPlayerId,
   gameCaptainId = null,
+  setLiberoId = null,
 }: {
   players: Player[];
   color: "blue" | "teal";
   onCourtPositionByPlayerId: (playerId: string) => number | null;
   gameCaptainId?: string | null;
+  setLiberoId?: string | null;
 }) {
   return (
     <div className="mt-4 border-t border-white/70 pt-4">
@@ -41,6 +43,7 @@ function TeamRosterList({
               const courtPosition = onCourtPositionByPlayerId(p.id);
               const onCourt = courtPosition !== null;
               const captainLabel = onCourt ? getCaptainLabel(players, p.id, gameCaptainId) : null;
+              const isSetLibero = setLiberoId === p.id;
               return (
                 <div
                   key={p.id}
@@ -66,6 +69,11 @@ function TeamRosterList({
                       Game Captain
                     </span>
                   )}
+                  {isSetLibero && (
+                    <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                      Libero
+                    </span>
+                  )}
                   {onCourt && (
                     <span className="shrink-0 text-xs font-medium text-orange-600">
                       P{courtPosition}
@@ -78,6 +86,23 @@ function TeamRosterList({
       )}
     </div>
   );
+}
+
+function getPreviousSetLibero(match: Match, team: "home" | "away"): string | null {
+  const prev = match.sets?.find((s) => s.setNumber === match.currentSet - 1);
+  if (!prev) return null;
+  return team === "home" ? prev.homeLiberoId ?? null : prev.awayLiberoId ?? null;
+}
+
+function liberoCandidates(players: Player[], rotation: (string | null)[]): Player[] {
+  const onCourt = rotation.filter((id): id is string => !!id);
+  const bench = benchPlayers(players, onCourt);
+  return [...bench].sort((a, b) => {
+    const aLibero = a.role === "libero" ? 0 : 1;
+    const bLibero = b.role === "libero" ? 0 : 1;
+    if (aLibero !== bLibero) return aLibero - bLibero;
+    return a.jerseyNumber - b.jerseyNumber;
+  });
 }
 
 function RotationSetup({
@@ -95,6 +120,8 @@ function RotationSetup({
   const [awayRotation, setAwayRotation] = useState<(string | null)[]>(Array(6).fill(null));
   const [homeGameCaptain, setHomeGameCaptain] = useState<string | null>(null);
   const [awayGameCaptain, setAwayGameCaptain] = useState<string | null>(null);
+  const [homeLibero, setHomeLibero] = useState<string | null>(() => getPreviousSetLibero(match, "home"));
+  const [awayLibero, setAwayLibero] = useState<string | null>(() => getPreviousSetLibero(match, "away"));
   const [servingTeam, setServingTeam] = useState<ServingTeam>("home");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -121,11 +148,16 @@ function RotationSetup({
     const rotation = team === "home" ? homeRotation : awayRotation;
     const gameCaptain = team === "home" ? homeGameCaptain : awayGameCaptain;
     const setGameCaptain = team === "home" ? setHomeGameCaptain : setAwayGameCaptain;
+    const libero = team === "home" ? homeLibero : awayLibero;
+    const setLibero = team === "home" ? setHomeLibero : setAwayLibero;
     const updated = [...rotation];
     updated[position] = playerId;
     setter(updated);
     if (gameCaptain && !updated.includes(gameCaptain)) {
       setGameCaptain(null);
+    }
+    if (libero && updated.includes(libero)) {
+      setLibero(null);
     }
   }
 
@@ -158,6 +190,8 @@ function RotationSetup({
           servingTeam,
           homeGameCaptainId: homeGameCaptain,
           awayGameCaptainId: awayGameCaptain,
+          homeLiberoId: homeLibero,
+          awayLiberoId: awayLibero,
           courtSwapped,
         }),
       });
@@ -179,11 +213,14 @@ function RotationSetup({
     side: "left" | "right",
     color: "blue" | "teal",
     gameCaptain: string | null,
-    onGameCaptainChange: (playerId: string | null) => void
+    onGameCaptainChange: (playerId: string | null) => void,
+    setLibero: string | null,
+    onSetLiberoChange: (playerId: string | null) => void
   ) {
     const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
     const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
     const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
+    const benchLiberos = liberoCandidates(players, rotation);
 
     return (
       <div className={`rounded-xl border p-4 ${bg}`}>
@@ -239,10 +276,30 @@ function RotationSetup({
             </select>
           </div>
         )}
+        <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
+          <p className="text-sm font-medium text-violet-900">Libero for this set</p>
+          <p className="mt-0.5 text-xs text-violet-700">
+            Select a bench player. Liberos cannot start on court.
+          </p>
+          <select
+            value={setLibero ?? ""}
+            onChange={(e) => onSetLiberoChange(e.target.value || null)}
+            className="mt-2 w-full rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+          >
+            <option value="">No libero assigned</option>
+            {benchLiberos.map((p) => (
+              <option key={p.id} value={p.id}>
+                #{p.jerseyNumber} {p.name}
+                {p.role === "libero" ? " (Libero)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <TeamRosterList
           players={players}
           color={color}
           gameCaptainId={gameCaptain}
+          setLiberoId={setLibero}
           onCourtPositionByPlayerId={(playerId) => {
             const positionIndex = rotation.indexOf(playerId);
             return positionIndex === -1 ? null : positionIndex + 1;
@@ -312,7 +369,9 @@ function RotationSetup({
                 side,
                 isHome ? "blue" : "teal",
                 isHome ? homeGameCaptain : awayGameCaptain,
-                isHome ? setHomeGameCaptain : setAwayGameCaptain
+                isHome ? setHomeGameCaptain : setAwayGameCaptain,
+                isHome ? homeLibero : awayLibero,
+                isHome ? setHomeLibero : setAwayLibero
               )}
             </Fragment>
           );
@@ -362,6 +421,7 @@ function CourtRotation({
   side,
   players,
   gameCaptainId,
+  setLiberoId,
   substitutions,
   timeouts,
   onOpenSubstitute,
@@ -375,6 +435,7 @@ function CourtRotation({
   side: "left" | "right";
   players: Player[];
   gameCaptainId: string | null;
+  setLiberoId: string | null;
   substitutions: Substitution[];
   timeouts: Timeout[];
   onOpenSubstitute?: () => void;
@@ -459,6 +520,7 @@ function CourtRotation({
         players={players}
         color={color}
         gameCaptainId={gameCaptainId}
+        setLiberoId={setLiberoId}
         onCourtPositionByPlayerId={(playerId) => {
           const entry = teamRotations.find((r) => r.playerId === playerId);
           return entry?.position ?? null;
@@ -1087,6 +1149,10 @@ function LiveScoring({
             teamId === match.homeTeamId
               ? currentSetRow?.homeGameCaptainId ?? null
               : currentSetRow?.awayGameCaptainId ?? null;
+          const setLiberoId =
+            teamId === match.homeTeamId
+              ? currentSetRow?.homeLiberoId ?? null
+              : currentSetRow?.awayLiberoId ?? null;
           const teamSubstitutions =
             match.substitutions?.filter(
               (s) => s.teamId === teamId && s.setNumber === match.currentSet
@@ -1106,6 +1172,7 @@ function LiveScoring({
               side={side}
               players={players}
               gameCaptainId={gameCaptainId}
+              setLiberoId={setLiberoId}
               substitutions={teamSubstitutions}
               timeouts={teamTimeouts}
               timeoutLoading={timeoutLoadingTeam === team}

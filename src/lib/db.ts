@@ -134,6 +134,12 @@ function migrateSchema(database: Database.Database) {
   if (!setNames.has("ended_at")) {
     database.exec("ALTER TABLE match_sets ADD COLUMN ended_at TEXT");
   }
+  if (!setNames.has("home_libero_id")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN home_libero_id TEXT REFERENCES players(id)");
+  }
+  if (!setNames.has("away_libero_id")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN away_libero_id TEXT REFERENCES players(id)");
+  }
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS substitutions (

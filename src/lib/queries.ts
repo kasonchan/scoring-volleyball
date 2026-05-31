@@ -70,6 +70,8 @@ function rowToSet(row: Record<string, unknown>): MatchSet {
     courtSwapped: Boolean(row.court_swapped),
     startedAt: (row.started_at as string | null) ?? null,
     endedAt: (row.ended_at as string | null) ?? null,
+    homeLiberoId: (row.home_libero_id as string | null) ?? null,
+    awayLiberoId: (row.away_libero_id as string | null) ?? null,
   };
 }
 
@@ -116,6 +118,36 @@ function validateSetGameCaptains(
   return { homeGc, awayGc };
 }
 
+function validateSetLiberos(
+  match: Match,
+  homeRotation: string[],
+  awayRotation: string[],
+  homeLiberoId: string | null,
+  awayLiberoId: string | null
+) {
+  const checks: [Player[], string[], string | null, string][] = [
+    [match.homeTeam?.players ?? [], homeRotation, homeLiberoId, "Home"],
+    [match.awayTeam?.players ?? [], awayRotation, awayLiberoId, "Away"],
+  ];
+
+  for (const [players, rotation, liberoId, label] of checks) {
+    if (!liberoId) continue;
+    const player = players.find((p) => p.id === liberoId);
+    if (!player) throw new Error(`${label} libero must be on the team roster`);
+    if (rotation.includes(liberoId)) {
+      throw new Error(`${label} libero cannot be in the starting rotation`);
+    }
+    if (player.role === "team_captain") {
+      throw new Error(`${label} libero cannot be the Team Captain`);
+    }
+  }
+
+  return {
+    homeLibero: homeLiberoId,
+    awayLibero: awayLiberoId,
+  };
+}
+
 function updateSetGameCaptains(
   matchId: string,
   setNumber: number,
@@ -126,6 +158,18 @@ function updateSetGameCaptains(
   db.prepare(
     "UPDATE match_sets SET home_game_captain_id = ?, away_game_captain_id = ? WHERE match_id = ? AND set_number = ?"
   ).run(homeGameCaptainId, awayGameCaptainId, matchId, setNumber);
+}
+
+function updateSetLiberos(
+  matchId: string,
+  setNumber: number,
+  homeLiberoId: string | null,
+  awayLiberoId: string | null
+) {
+  const db = getDb();
+  db.prepare(
+    "UPDATE match_sets SET home_libero_id = ?, away_libero_id = ? WHERE match_id = ? AND set_number = ?"
+  ).run(homeLiberoId, awayLiberoId, matchId, setNumber);
 }
 
 function ensureSetRow(matchId: string, setNumber: number, courtSwapped = false) {
@@ -462,6 +506,13 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
     input.homeGameCaptainId ?? null,
     input.awayGameCaptainId ?? null
   );
+  const { homeLibero, awayLibero } = validateSetLiberos(
+    match,
+    input.homeRotation,
+    input.awayRotation,
+    input.homeLiberoId ?? null,
+    input.awayLiberoId ?? null
+  );
   const courtSwapped = input.courtSwapped ?? false;
 
   db.prepare("DELETE FROM rotations WHERE match_id = ? AND set_number = ?").run(matchId, setNumber);
@@ -483,10 +534,11 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
 
   if (!existingSet) {
     db.prepare(
-      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id, court_swapped) VALUES (?, ?, ?, 0, 0, ?, ?, ?)"
-    ).run(uuidv4(), matchId, setNumber, homeGc, awayGc, courtSwapped ? 1 : 0);
+      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id, home_libero_id, away_libero_id, court_swapped) VALUES (?, ?, ?, 0, 0, ?, ?, ?, ?, ?)"
+    ).run(uuidv4(), matchId, setNumber, homeGc, awayGc, homeLibero, awayLibero, courtSwapped ? 1 : 0);
   } else {
     updateSetGameCaptains(matchId, setNumber, homeGc, awayGc);
+    updateSetLiberos(matchId, setNumber, homeLibero, awayLibero);
     updateSetCourtSwapped(matchId, setNumber, courtSwapped);
   }
 
