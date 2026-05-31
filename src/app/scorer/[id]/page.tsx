@@ -5,7 +5,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { CurrentTimeClock } from "@/components/CurrentTimeClock";
+import { CompletedSetsSummary } from "@/components/scoring/completed-sets-summary";
+import { CourtPanel, TeamRosterList } from "@/components/scoring/court-panel";
+import { SetHistoryCard } from "@/components/scoring/set-history-card";
 import { Badge, Button, Card } from "@/components/ui";
+import {
+  getCourtSwappedForMatch,
+  getCourtTeams,
+  LEFT_COURT_POSITIONS,
+  RIGHT_COURT_POSITIONS,
+} from "@/lib/court-layout";
 import {
   benchPlayers,
   getCaptainLabel,
@@ -22,17 +31,8 @@ import {
   type LiberoInOption,
 } from "@/lib/libero";
 import { isRallyInProgress, needsRallyStart as matchNeedsRallyStart } from "@/lib/rally";
-import {
-  buildSetHistoryEvents,
-  formatSetHistoryTime,
-  getSetHistoryKindLabel,
-  type SetHistoryEvent,
-  type SetHistoryEventKind,
-} from "@/lib/set-history";
-import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, LiberoReplacement, ScoreEvent, Rally, formatMatchDateTime, formatRallyTime, formatSetDuration, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
+import { Match, Player, ServingTeam, Substitution, Timeout, LiberoReplacement, formatMatchDateTime, formatRallyTime, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
 
-const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
-const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
 const SCORER_COMPACT_MODE_KEY = "scorer-compact-mode";
 
 function CompactModeToggle({
@@ -68,91 +68,6 @@ function CompactModeToggle({
       </span>
       Compact mode
     </button>
-  );
-}
-
-function TeamRosterList({
-  players,
-  color,
-  onCourtPositionByPlayerId,
-  gameCaptainId = null,
-  setLiberoIds = [],
-  compact = false,
-}: {
-  players: Player[];
-  color: "blue" | "teal";
-  onCourtPositionByPlayerId: (playerId: string) => number | null;
-  gameCaptainId?: string | null;
-  setLiberoIds?: string[];
-  compact?: boolean;
-}) {
-  return (
-    <div className={`border-t border-white/70 ${compact ? "mt-3 pt-3" : "mt-4 pt-4"}`}>
-      <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Roster</h4>
-      {players.length === 0 ? (
-        <p className="text-sm text-slate-500">No players on roster.</p>
-      ) : (
-        <div className={`space-y-1 ${compact ? "max-h-52 overflow-y-auto pr-1" : ""}`}>
-          {[...players]
-            .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
-            .map((p) => {
-              const courtPosition = onCourtPositionByPlayerId(p.id);
-              const onCourt = courtPosition !== null;
-              const captainLabel = onCourt ? getCaptainLabel(players, p.id, gameCaptainId) : null;
-              const isSetLibero = setLiberoIds.includes(p.id);
-              return (
-                <div
-                  key={p.id}
-                  className={`flex items-center gap-2 rounded-lg px-2 ${
-                    compact ? "py-1 text-xs" : "py-1.5 text-sm"
-                  } ${onCourt ? "bg-white font-medium text-slate-900" : "text-slate-600"}`}
-                >
-                  <span
-                    className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white ${
-                      compact ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-xs"
-                    } ${color === "blue" ? "bg-blue-500" : "bg-teal-500"}`}
-                  >
-                    {p.jerseyNumber}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  {!compact && p.role && (
-                    <span className="hidden shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-600 sm:inline">
-                      {PLAYER_ROLE_LABELS[p.role]}
-                    </span>
-                  )}
-                  {captainLabel && (
-                    <span
-                      className={`shrink-0 rounded-full bg-amber-100 font-medium text-amber-800 ${
-                        compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs"
-                      }`}
-                    >
-                      {compact
-                        ? captainLabel === "Team Captain"
-                          ? "TC"
-                          : "GC"
-                        : captainLabel}
-                    </span>
-                  )}
-                  {isSetLibero && (
-                    <span
-                      className={`shrink-0 rounded-full bg-violet-100 font-medium text-violet-800 ${
-                        compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs"
-                      }`}
-                    >
-                      {compact ? "L" : "Libero"}
-                    </span>
-                  )}
-                  {onCourt && (
-                    <span className="shrink-0 text-xs font-medium text-orange-600">
-                      P{courtPosition}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -474,422 +389,6 @@ function RotationSetup({
   );
 }
 
-function CompletedSetsSummary({
-  match,
-  compact = false,
-}: {
-  match: Match;
-  compact?: boolean;
-}) {
-  const completedSets = match.sets?.filter((s) => s.status === "completed") ?? [];
-  if (completedSets.length === 0) return null;
-
-  if (compact) {
-    return (
-      <div className="mt-1 flex flex-wrap justify-center gap-1">
-        {completedSets.map((s) => {
-          const duration = formatSetDuration(s.startedAt, s.endedAt);
-          return (
-            <span
-              key={s.id}
-              className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-              title={duration ?? undefined}
-            >
-              Set {s.setNumber}: {s.homeScore}–{s.awayScore}
-            </span>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 text-center">
-      <h3 className="mb-2 text-sm font-medium text-slate-500">Completed Sets</h3>
-      <div className="flex flex-wrap justify-center gap-2">
-        {completedSets.map((s) => {
-          const duration = formatSetDuration(s.startedAt, s.endedAt);
-          return (
-            <div key={s.id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
-              <div>
-                Set {s.setNumber}: {s.homeScore} – {s.awayScore}
-              </div>
-              {duration && <div className="text-xs text-slate-500">{duration}</div>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-const SET_HISTORY_KIND_COLORS: Record<SetHistoryEventKind, string> = {
-  rally_start: "bg-slate-100 text-slate-700",
-  point: "bg-emerald-100 text-emerald-800",
-  substitution: "bg-amber-100 text-amber-800",
-  timeout: "bg-orange-100 text-orange-800",
-  libero_in: "bg-violet-100 text-violet-800",
-  libero_out: "bg-violet-50 text-violet-700",
-};
-
-function SetHistorySideScore({
-  score,
-  highlight,
-}: {
-  score: number;
-  highlight?: boolean;
-}) {
-  return (
-    <span
-      className={`shrink-0 tabular-nums text-base leading-none ${
-        highlight ? "font-bold text-emerald-700" : "font-semibold text-slate-500"
-      }`}
-    >
-      {score}
-    </span>
-  );
-}
-
-function getSideScores(
-  event: SetHistoryEvent,
-  leftTeamId: string,
-  homeTeamId: string
-): { left: number; right: number } | null {
-  if (event.homeScore == null || event.awayScore == null) return null;
-  const leftIsHome = leftTeamId === homeTeamId;
-  return {
-    left: leftIsHome ? event.homeScore : event.awayScore,
-    right: leftIsHome ? event.awayScore : event.homeScore,
-  };
-}
-
-function SetHistoryEventBubble({ event }: { event: SetHistoryEvent }) {
-  return (
-    <div className="inline-flex max-w-full flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-700 shadow-sm">
-      <span
-        className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${SET_HISTORY_KIND_COLORS[event.kind]}`}
-      >
-        {getSetHistoryKindLabel(event.kind)}
-      </span>
-      <span className="leading-snug">{event.summary}</span>
-    </div>
-  );
-}
-
-function SetHistoryCard({
-  setNumber,
-  leftTeamId,
-  rightTeamId,
-  leftTeamName,
-  rightTeamName,
-  homeTeamId,
-  homeTeamName,
-  awayTeamName,
-  rallies,
-  scoreEvents,
-  substitutions,
-  timeouts,
-  liberoReplacements,
-  compact = false,
-}: {
-  setNumber: number;
-  leftTeamId: string;
-  rightTeamId: string;
-  leftTeamName: string;
-  rightTeamName: string;
-  homeTeamId: string;
-  homeTeamName: string;
-  awayTeamName: string;
-  rallies: Rally[];
-  scoreEvents: ScoreEvent[];
-  substitutions: Substitution[];
-  timeouts: Timeout[];
-  liberoReplacements: LiberoReplacement[];
-  compact?: boolean;
-}) {
-  const events = buildSetHistoryEvents({
-    rallies,
-    scoreEvents,
-    substitutions,
-    timeouts,
-    liberoReplacements,
-    homeTeamId,
-    homeTeamName,
-    awayTeamName,
-  });
-
-  if (events.length === 0) return null;
-
-  return (
-    <Card className={compact ? "!p-4" : undefined}>
-      <div className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 ${compact ? "mb-2" : "mb-3"}`}>
-        <div className="truncate pr-1 text-left text-xs font-semibold text-slate-700 sm:text-sm">
-          {leftTeamName}
-        </div>
-        <h3 className="whitespace-nowrap px-1 text-center text-sm font-medium text-slate-500">
-          Set History — Set {setNumber}
-        </h3>
-        <div className="truncate pl-1 text-right text-xs font-semibold text-slate-700 sm:text-sm">
-          {rightTeamName}
-        </div>
-      </div>
-      <div className={compact ? "max-h-64 space-y-2 overflow-y-auto" : "max-h-72 space-y-2 overflow-y-auto"}>
-        {events.map((event) => {
-          const onLeft = event.teamId === leftTeamId;
-          const onRight = event.teamId === rightTeamId;
-          const isNeutral = event.teamId === null;
-          const sideScores = getSideScores(event, leftTeamId, homeTeamId);
-
-          return (
-            <div
-              key={event.id}
-              className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"
-            >
-              <div className="flex w-full min-w-0 items-center justify-end gap-2 pr-1">
-                {onLeft && (
-                  <div className="min-w-0 shrink-0">
-                    <SetHistoryEventBubble event={event} />
-                  </div>
-                )}
-                {sideScores && (
-                  <SetHistorySideScore
-                    score={sideScores.left}
-                    highlight={onLeft && event.kind === "point"}
-                  />
-                )}
-              </div>
-              <div className="flex shrink-0 flex-col items-start gap-1 px-1">
-                <span className="whitespace-nowrap tabular-nums text-left text-xs font-medium text-slate-500">
-                  {formatSetHistoryTime(event.createdAt)}
-                </span>
-                {isNeutral && (
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-left text-[10px] font-medium uppercase ${SET_HISTORY_KIND_COLORS[event.kind]}`}
-                  >
-                    {getSetHistoryKindLabel(event.kind)}
-                  </span>
-                )}
-                {isNeutral && (
-                  <span className="max-w-[8rem] text-left text-[11px] leading-snug text-slate-600">
-                    {event.summary}
-                  </span>
-                )}
-              </div>
-              <div className="flex w-full min-w-0 items-center justify-start gap-2 pl-1">
-                {sideScores && (
-                  <SetHistorySideScore
-                    score={sideScores.right}
-                    highlight={onRight && event.kind === "point"}
-                  />
-                )}
-                {onRight && (
-                  <div className="min-w-0 shrink-0">
-                    <SetHistoryEventBubble event={event} />
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
-function CourtRotation({
-  teamName,
-  rotations,
-  serving,
-  color,
-  side,
-  players,
-  gameCaptainId,
-  setLiberoIds,
-  substitutions,
-  liberoReplacements,
-  timeouts,
-  onOpenSubstitute,
-  onLiberoIn,
-  onTimeout,
-  timeoutLoading,
-  liberoLoading,
-  rallyInProgress,
-  compact = false,
-}: {
-  teamName: string;
-  rotations: Match["rotations"];
-  serving: boolean;
-  color: "blue" | "teal";
-  side: "left" | "right";
-  players: Player[];
-  gameCaptainId: string | null;
-  setLiberoIds: string[];
-  substitutions: Substitution[];
-  liberoReplacements: LiberoReplacement[];
-  timeouts: Timeout[];
-  onOpenSubstitute?: () => void;
-  onLiberoIn?: () => void;
-  onTimeout?: () => void;
-  timeoutLoading?: boolean;
-  liberoLoading?: boolean;
-  rallyInProgress: boolean;
-  compact?: boolean;
-}) {
-  const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
-  const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
-  const benchLiberos = setLiberoIds
-    .map((id) => players.find((p) => p.id === id))
-    .filter((p): p is Player => !!p && !onCourtPlayerIds.includes(p.id));
-  const liberoInOptions = getLiberoInOptions(
-    teamRotations,
-    benchLiberos,
-    setLiberoIds,
-    liberoReplacements,
-    players,
-    serving
-  );
-  const liberoInCount = liberoReplacements.filter((r) => r.eventType === "in").length;
-  const liberoOnCourt = isLiberoOnCourt(teamRotations, setLiberoIds);
-  const liberoInTitle = rallyInProgress
-    ? "Libero changes allowed between rallies only"
-    : liberoOnCourt && liberoInOptions.length === 0
-      ? "No bench libero or original replaced player available"
-      : liberoOnCourt
-        ? "Switch bench libero or restore the original replaced player"
-        : setLiberoIds.length === 0 || benchLiberos.length === 0
-          ? "Assign liberos and keep one on the bench"
-          : serving
-            ? `Libero in at ${liberoInPositionLabel(true)} only (not P1 while serving)`
-            : `Libero in at ${liberoInPositionLabel(false)} only`;
-  const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
-  const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
-  const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
-
-  return (
-    <div className={`rounded-xl border ${compact ? "p-3" : "p-4"} ${bg}`}>
-      <div className={`flex items-center justify-between gap-2 ${compact ? "mb-2" : "mb-3"}`}>
-        <h3 className={`font-semibold ${compact ? "text-sm" : ""} ${accent}`}>{teamName}</h3>
-        {serving && <Badge color="orange">Serving</Badge>}
-      </div>
-      <div className={`grid grid-cols-2 text-center ${compact ? "gap-1.5 text-xs" : "gap-2 text-sm"}`}>
-        {positions.map((pos) => {
-          const entry = teamRotations.find((r) => r.position === pos);
-          const isServer = pos === 1 && serving;
-          const captainLabel = entry?.player
-            ? getCaptainLabel(players, entry.player.id, gameCaptainId)
-            : null;
-          const isActiveLibero =
-            !!entry?.player && isLiberoPlayer(entry.player, setLiberoIds) && onCourtPlayerIds.includes(entry.player.id);
-          return (
-            <div
-              key={pos}
-              className={`rounded-lg bg-white shadow-sm ${compact ? "p-1.5" : "p-2"} ${isServer ? "ring-2 ring-orange-400" : ""}`}
-            >
-              <div className="flex items-center justify-between gap-1">
-                <div className="text-xs text-slate-400">P{pos}</div>
-                <div className="flex items-center gap-1">
-                  {isActiveLibero && (
-                    <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">
-                      L
-                    </span>
-                  )}
-                  {captainLabel && (
-                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                      {captainLabel === "Team Captain" ? "TC" : "GC"}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="font-bold text-slate-900">
-                {entry?.player ? `#${entry.player.jerseyNumber}` : "—"}
-              </div>
-              <div className="truncate text-xs text-slate-600">
-                {entry?.player?.name ?? ""}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {!needsGameCaptainAssignment(players, onCourtPlayerIds, gameCaptainId) ? null : (
-        <p
-          className={`rounded-lg border border-amber-200 bg-amber-50 text-amber-900 ${
-            compact ? "mt-2 px-2 py-1 text-[10px] leading-snug" : "mt-3 px-3 py-2 text-xs"
-          }`}
-        >
-          No Team Captain or Game Captain on court. Substitute to assign a Game Captain.
-        </p>
-      )}
-      {(onTimeout || onOpenSubstitute || onLiberoIn) && (
-        <div className={`flex flex-wrap ${compact ? "mt-2 gap-1" : "mt-3 gap-2"}`}>
-          {onLiberoIn && (
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onLiberoIn}
-              disabled={
-                rallyInProgress ||
-                liberoLoading ||
-                setLiberoIds.length === 0 ||
-                liberoInOptions.length === 0
-              }
-              className={compact ? "!px-2 !py-1 text-[10px]" : "text-xs"}
-              title={liberoInTitle}
-            >
-              {compact ? `Libero (${liberoInCount})` : `Libero In (${liberoInCount})`}
-            </Button>
-          )}
-          {onTimeout && (
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onTimeout}
-              disabled={
-                rallyInProgress ||
-                timeoutLoading ||
-                timeouts.length >= MAX_TIMEOUTS_PER_SET
-              }
-              className={compact ? "!px-2 !py-1 text-[10px]" : "text-xs"}
-              title={
-                rallyInProgress
-                  ? "Timeouts allowed between rallies only"
-                  : `Timeouts this set (max ${MAX_TIMEOUTS_PER_SET})`
-              }
-            >
-              {compact ? `TO (${timeouts.length})` : `Timeout (${timeouts.length})`}
-            </Button>
-          )}
-          {onOpenSubstitute && (
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onOpenSubstitute}
-              disabled={rallyInProgress}
-              className={compact ? "!px-2 !py-1 text-[10px]" : "text-xs"}
-              title={
-                rallyInProgress
-                  ? "Substitutions allowed between rallies only"
-                  : "Substitutions this set"
-              }
-            >
-              {compact ? `Sub (${substitutions.length})` : `Substitute (${substitutions.length})`}
-            </Button>
-          )}
-        </div>
-      )}
-      <TeamRosterList
-        players={players}
-        color={color}
-        gameCaptainId={gameCaptainId}
-        setLiberoIds={setLiberoIds}
-        compact={compact}
-        onCourtPositionByPlayerId={(playerId) => {
-          const entry = teamRotations.find((r) => r.playerId === playerId);
-          return entry?.position ?? null;
-        }}
-      />
-    </div>
-  );
-}
 
 function LiberoInModal({
   teamName,
@@ -1696,43 +1195,7 @@ function LiveScoring({
     );
   }
 
-  const courtTeams = courtSwapped
-    ? ([
-        {
-          team: "away" as const,
-          side: "left" as const,
-          teamId: match.awayTeamId,
-          teamName: match.awayTeam?.name ?? "Away",
-          color: "teal" as const,
-          serving: match.servingTeam === "away",
-        },
-        {
-          team: "home" as const,
-          side: "right" as const,
-          teamId: match.homeTeamId,
-          teamName: match.homeTeam?.name ?? "Home",
-          color: "blue" as const,
-          serving: match.servingTeam === "home",
-        },
-      ] as const)
-    : ([
-        {
-          team: "home" as const,
-          side: "left" as const,
-          teamId: match.homeTeamId,
-          teamName: match.homeTeam?.name ?? "Home",
-          color: "blue" as const,
-          serving: match.servingTeam === "home",
-        },
-        {
-          team: "away" as const,
-          side: "right" as const,
-          teamId: match.awayTeamId,
-          teamName: match.awayTeam?.name ?? "Away",
-          color: "teal" as const,
-          serving: match.servingTeam === "away",
-        },
-      ] as const);
+  const courtTeams = getCourtTeams(match, courtSwapped);
 
   const currentSetRow = summary.currentSet;
   const leftCourtTeam = courtTeams[0];
@@ -1768,7 +1231,7 @@ function LiveScoring({
       ) ?? [];
 
     return (
-      <CourtRotation
+      <CourtPanel
         teamName={teamName}
         rotations={match.rotations?.filter((r) => r.teamId === teamId)}
         serving={serving}
@@ -2054,10 +1517,6 @@ function LiveScoring({
       {renderSetHistory(false)}
     </div>
   );
-}
-
-function getCourtSwappedForMatch(m: Match): boolean {
-  return m.sets?.find((s) => s.setNumber === m.currentSet)?.courtSwapped ?? false;
 }
 
 export default function MatchScorerPage() {
