@@ -7,6 +7,16 @@ export function isLiberoInPosition(position: number): boolean {
   return (LIBERO_IN_POSITIONS as readonly number[]).includes(position);
 }
 
+export function isLiberoInPositionAllowed(position: number, teamServing: boolean): boolean {
+  if (!isLiberoInPosition(position)) return false;
+  if (teamServing && position === 1) return false;
+  return true;
+}
+
+export function liberoInPositionLabel(teamServing: boolean): string {
+  return teamServing ? "P5, P6" : "P1, P5, P6";
+}
+
 export function getActiveLiberoIns(replacements: LiberoReplacement[]): Map<string, string> {
   const active = new Map<string, string>();
   for (const entry of replacements) {
@@ -39,45 +49,89 @@ export function resolveLiberoReplacementPlayer(
 export interface LiberoInOption {
   position: number;
   player: Player;
-  eligibleLiberos: Player[];
+  eligiblePlayersIn: Player[];
+}
+
+export function getEligiblePlayersWhenLiberoOnCourt(
+  onCourtLibero: Player,
+  replacements: LiberoReplacement[],
+  benchLiberos: Player[],
+  onCourtIds: Set<string>,
+  players: Player[]
+): Player[] {
+  const active = getActiveLiberoIns(replacements);
+  const replacedPlayerId = active.get(onCourtLibero.id);
+  const eligible: Player[] = [];
+  const seen = new Set<string>();
+
+  const add = (player: Player | undefined) => {
+    if (player && !onCourtIds.has(player.id) && !seen.has(player.id)) {
+      eligible.push(player);
+      seen.add(player.id);
+    }
+  };
+
+  for (const libero of benchLiberos) {
+    add(libero);
+  }
+
+  if (replacedPlayerId) {
+    add(players.find((p) => p.id === replacedPlayerId));
+  }
+
+  return eligible;
 }
 
 export function getLiberoInOptions(
   rotations: { position: number; player?: Player }[],
   benchLiberos: Player[],
-  setLiberoIds: string[]
+  setLiberoIds: string[],
+  replacements: LiberoReplacement[] = [],
+  allPlayers: Player[] = [],
+  teamServing = false
 ): LiberoInOption[] {
-  if (benchLiberos.length === 0) return [];
-
-  const liberoOnBackRow: LiberoInOption[] = [];
-  const regularPlayerOptions: LiberoInOption[] = [];
-
-  for (const entry of rotations) {
-    if (!isLiberoInPosition(entry.position)) continue;
-    const player = entry.player;
-    if (!player) continue;
-
-    if (isLiberoPlayer(player, setLiberoIds)) {
-      liberoOnBackRow.push({
-        position: entry.position,
-        player,
-        eligibleLiberos: benchLiberos,
-      });
-    } else {
-      regularPlayerOptions.push({
-        position: entry.position,
-        player,
-        eligibleLiberos: benchLiberos,
-      });
-    }
-  }
-
   const liberoOnCourt = rotations.some(
     (r) => r.player && isLiberoPlayer(r.player, setLiberoIds)
   );
 
   if (liberoOnCourt) {
-    return liberoOnBackRow.sort((a, b) => a.position - b.position);
+    const onCourtIds = new Set(
+      rotations.map((r) => r.player?.id).filter((id): id is string => !!id)
+    );
+    const options: LiberoInOption[] = [];
+
+    for (const entry of rotations) {
+      if (!isLiberoInPositionAllowed(entry.position, teamServing)) continue;
+      const player = entry.player;
+      if (!player || !isLiberoPlayer(player, setLiberoIds)) continue;
+
+      const eligiblePlayersIn = getEligiblePlayersWhenLiberoOnCourt(
+        player,
+        replacements,
+        benchLiberos,
+        onCourtIds,
+        allPlayers
+      );
+      if (eligiblePlayersIn.length > 0) {
+        options.push({ position: entry.position, player, eligiblePlayersIn });
+      }
+    }
+
+    return options.sort((a, b) => a.position - b.position);
+  }
+
+  if (benchLiberos.length === 0) return [];
+
+  const regularPlayerOptions: LiberoInOption[] = [];
+  for (const entry of rotations) {
+    if (!isLiberoInPositionAllowed(entry.position, teamServing)) continue;
+    const player = entry.player;
+    if (!player || isLiberoPlayer(player, setLiberoIds)) continue;
+    regularPlayerOptions.push({
+      position: entry.position,
+      player,
+      eligiblePlayersIn: benchLiberos,
+    });
   }
 
   return regularPlayerOptions.sort((a, b) => a.position - b.position);

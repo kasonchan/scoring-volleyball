@@ -19,6 +19,7 @@ import {
   Timeout,
   TimeoutInput,
   Rally,
+  ScoreEvent,
   LiberoReplacement,
   LiberoInInput,
   LiberoOutInput,
@@ -35,10 +36,11 @@ import { getAllowedSubstitutesIn } from "./substitutions";
 import { isRallyInProgress } from "./rally";
 import {
   canLiberoOutAtP4,
-  getActiveLiberoIns,
   getLiberoInOptions,
+  isLiberoInPositionAllowed,
   isLiberoInPosition,
   isLiberoPlayer,
+  liberoInPositionLabel,
   LIBERO_IN_POSITIONS,
   LIBERO_OUT_POSITION,
   resolveLiberoReplacementPlayer,
@@ -378,6 +380,7 @@ function enrichMatch(row: Record<string, unknown>): Match {
   match.timeouts = getMatchTimeouts(match.id, match.currentSet);
   match.liberoReplacements = getMatchLiberoReplacements(match.id, match.currentSet);
   match.rallies = getMatchRallies(match.id, match.currentSet);
+  match.scoreEvents = getMatchScoreEvents(match.id, match.currentSet);
   return match;
 }
 
@@ -508,6 +511,30 @@ function getMatchRallies(matchId: string, setNumber: number): Rally[] {
     )
     .all(matchId, setNumber) as Record<string, unknown>[];
   return rows.map(rowToRally);
+}
+
+function rowToScoreEvent(row: Record<string, unknown>): ScoreEvent {
+  return {
+    id: row.id as string,
+    matchId: row.match_id as string,
+    setNumber: row.set_number as number,
+    teamId: row.team_id as string,
+    scoringTeam: row.scoring_team as ServingTeam,
+    homeScore: row.home_score as number,
+    awayScore: row.away_score as number,
+    sideOut: Boolean(row.side_out),
+    createdAt: row.created_at as string,
+  };
+}
+
+function getMatchScoreEvents(matchId: string, setNumber: number): ScoreEvent[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT * FROM score_events WHERE match_id = ? AND set_number = ? ORDER BY created_at"
+    )
+    .all(matchId, setNumber) as Record<string, unknown>[];
+  return rows.map(rowToScoreEvent);
 }
 
 function assertRallyInProgress(matchId: string, setNumber: number) {
@@ -807,6 +834,10 @@ export function liberoIn(matchId: string, input: LiberoInInput): Match {
   if (!isLiberoInPosition(input.position)) {
     throw new Error(`Libero in is only allowed at P${LIBERO_IN_POSITIONS.join(", P")}`);
   }
+  const teamServing = match.servingTeam === input.team;
+  if (!isLiberoInPositionAllowed(input.position, teamServing)) {
+    throw new Error("Libero in at P1 is not allowed while serving");
+  }
 
   const setNumber = match.currentSet;
   assertRallyNotInProgress(matchId, setNumber);
@@ -817,16 +848,13 @@ export function liberoIn(matchId: string, input: LiberoInInput): Match {
 
   const setLiberoIds =
     input.team === "home" ? currentSet.homeLiberoIds ?? [] : currentSet.awayLiberoIds ?? [];
-  if (!setLiberoIds.includes(input.liberoId)) {
-    throw new Error("Libero must be assigned for this set");
-  }
 
-  const libero = players.find((p) => p.id === input.liberoId);
-  if (!libero) throw new Error("Libero must be on the team roster");
+  const playerIn = players.find((p) => p.id === input.playerInId);
+  if (!playerIn) throw new Error("Player must be on the team roster");
 
   const onCourtIds = getOnCourtPlayerIds(matchId, teamId, setNumber);
-  if (onCourtIds.includes(input.liberoId)) {
-    throw new Error("Libero is already on court");
+  if (onCourtIds.includes(input.playerInId)) {
+    throw new Error("Player is already on court");
   }
 
   const positionEntry = db
@@ -840,23 +868,18 @@ export function liberoIn(matchId: string, input: LiberoInInput): Match {
   if (!playerOut) throw new Error("Player not found at selected position");
 
   const teamReplacements = getMatchLiberoReplacements(matchId, setNumber).filter((r) => r.teamId === teamId);
-  const active = getActiveLiberoIns(teamReplacements);
-  if (active.has(input.liberoId)) {
-    throw new Error("This libero is already on court");
-  }
-
   const benchLiberos = setLiberoIds
     .map((id) => players.find((p) => p.id === id))
     .filter((p): p is Player => !!p && !onCourtIds.includes(p.id));
-  if (!benchLiberos.some((p) => p.id === input.liberoId)) {
-    throw new Error("Libero must be on the bench");
-  }
 
   const teamRotations = getMatchRotations(matchId, setNumber).filter((r) => r.teamId === teamId);
   const allowedOptions = getLiberoInOptions(
     teamRotations,
     benchLiberos,
-    setLiberoIds
+    setLiberoIds,
+    teamReplacements,
+    players,
+    teamServing
   );
   const selectedOption = allowedOptions.find((o) => o.position === input.position);
   if (!selectedOption) {
@@ -864,31 +887,87 @@ export function liberoIn(matchId: string, input: LiberoInInput): Match {
       (r) => r.player && isLiberoPlayer(r.player, setLiberoIds)
     );
     if (liberoOnCourt) {
-      throw new Error("With a libero on court, only a bench libero swap at that position is allowed");
+      throw new Error("No eligible bench libero or original replaced player for this libero");
     }
     throw new Error("No eligible back-row position for libero in");
   }
-  if (!selectedOption.eligibleLiberos.some((p) => p.id === input.liberoId)) {
-    throw new Error("Selected libero cannot replace this player");
+  if (!selectedOption.eligiblePlayersIn.some((p) => p.id === input.playerInId)) {
+    throw new Error("Selected player cannot replace at this position");
   }
 
-  const replacedPlayerId = resolveLiberoReplacementPlayer(
-    playerOutId,
-    setLiberoIds,
-    players,
-    teamReplacements
+  const insertReplacement = db.prepare(
+    "INSERT INTO libero_replacements (id, match_id, team_id, set_number, libero_id, player_id, event_type, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
-  if (!replacedPlayerId) {
-    throw new Error("Cannot determine replaced player for this libero swap");
+
+  const playerInIsLibero = isLiberoPlayer(playerIn, setLiberoIds);
+  const playerOutIsLibero = isLiberoPlayer(playerOut, setLiberoIds);
+
+  if (playerOutIsLibero) {
+    const replacedPlayerId = resolveLiberoReplacementPlayer(
+      playerOutId,
+      setLiberoIds,
+      players,
+      teamReplacements
+    );
+    if (!replacedPlayerId) {
+      throw new Error("Cannot determine replaced player for this libero swap");
+    }
+
+    insertReplacement.run(
+      uuidv4(),
+      matchId,
+      teamId,
+      setNumber,
+      playerOutId,
+      replacedPlayerId,
+      "out",
+      input.position
+    );
+
+    db.prepare(
+      "UPDATE rotations SET player_id = ? WHERE match_id = ? AND team_id = ? AND set_number = ? AND position = ?"
+    ).run(input.playerInId, matchId, teamId, setNumber, input.position);
+
+    if (playerInIsLibero) {
+      if (!setLiberoIds.includes(input.playerInId)) {
+        throw new Error("Libero must be assigned for this set");
+      }
+      insertReplacement.run(
+        uuidv4(),
+        matchId,
+        teamId,
+        setNumber,
+        input.playerInId,
+        replacedPlayerId,
+        "in",
+        input.position
+      );
+    }
+
+    return getMatch(matchId)!;
+  }
+
+  if (!playerInIsLibero) {
+    throw new Error("Only a libero can replace a regular player");
+  }
+  if (!setLiberoIds.includes(input.playerInId)) {
+    throw new Error("Libero must be assigned for this set");
   }
 
   db.prepare(
     "UPDATE rotations SET player_id = ? WHERE match_id = ? AND team_id = ? AND set_number = ? AND position = ?"
-  ).run(input.liberoId, matchId, teamId, setNumber, input.position);
+  ).run(input.playerInId, matchId, teamId, setNumber, input.position);
 
-  db.prepare(
-    "INSERT INTO libero_replacements (id, match_id, team_id, set_number, libero_id, player_id, event_type, position) VALUES (?, ?, ?, ?, ?, ?, 'in', ?)"
-  ).run(uuidv4(), matchId, teamId, setNumber, input.liberoId, replacedPlayerId, input.position);
+  insertReplacement.run(
+    uuidv4(),
+    matchId,
+    teamId,
+    setNumber,
+    input.playerInId,
+    playerOutId,
+    "in",
+    input.position
+  );
 
   return getMatch(matchId)!;
 }
@@ -1033,6 +1112,23 @@ export function scorePoint(matchId: string, team: ServingTeam): Match {
   ).run(homeScore, awayScore, matchId, setNumber);
 
   db.prepare("UPDATE matches SET serving_team = ? WHERE id = ?").run(servingTeam, matchId);
+
+  const scoringTeamId =
+    scoringTeam === "home" ? match.homeTeamId : match.awayTeamId;
+  db.prepare(
+    `INSERT INTO score_events (
+      id, match_id, set_number, team_id, scoring_team, home_score, away_score, side_out
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    uuidv4(),
+    matchId,
+    setNumber,
+    scoringTeamId,
+    scoringTeam,
+    homeScore,
+    awayScore,
+    sideOut ? 1 : 0
+  );
 
   return getMatch(matchId)!;
 }

@@ -124,6 +124,20 @@ function initSchema(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS score_events (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      team_id TEXT NOT NULL,
+      scoring_team TEXT NOT NULL CHECK(scoring_team IN ('home', 'away')),
+      home_score INTEGER NOT NULL,
+      away_score INTEGER NOT NULL,
+      side_out INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
   `);
   migrateSchema(database);
 }
@@ -244,6 +258,22 @@ function migrateSchema(database: Database.Database) {
       serving_team TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS score_events (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      team_id TEXT NOT NULL,
+      scoring_team TEXT NOT NULL CHECK(scoring_team IN ('home', 'away')),
+      home_score INTEGER NOT NULL,
+      away_score INTEGER NOT NULL,
+      side_out INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
     )
   `);
 }

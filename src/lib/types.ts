@@ -81,6 +81,18 @@ export interface Rally {
   createdAt: string;
 }
 
+export interface ScoreEvent {
+  id: string;
+  matchId: string;
+  setNumber: number;
+  teamId: string;
+  scoringTeam: ServingTeam;
+  homeScore: number;
+  awayScore: number;
+  sideOut: boolean;
+  createdAt: string;
+}
+
 export type LiberoEventType = "in" | "out";
 
 export interface LiberoReplacement {
@@ -119,6 +131,7 @@ export interface Match {
   timeouts?: Timeout[];
   liberoReplacements?: LiberoReplacement[];
   rallies?: Rally[];
+  scoreEvents?: ScoreEvent[];
 }
 
 export interface CreateTeamInput {
@@ -169,7 +182,7 @@ export interface TimeoutInput {
 
 export interface LiberoInInput {
   team: ServingTeam;
-  liberoId: string;
+  playerInId: string;
   position: number;
 }
 
