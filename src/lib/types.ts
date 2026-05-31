@@ -71,6 +71,22 @@ export interface Timeout {
   createdAt: string;
 }
 
+export type LiberoEventType = "in" | "out";
+
+export interface LiberoReplacement {
+  id: string;
+  matchId: string;
+  teamId: string;
+  setNumber: number;
+  liberoId: string;
+  playerId: string;
+  eventType: LiberoEventType;
+  position: number;
+  createdAt: string;
+  libero?: Player;
+  player?: Player;
+}
+
 export const MAX_TIMEOUTS_PER_SET = 2;
 export const TIMEOUT_SECONDS = 30;
 
@@ -91,6 +107,7 @@ export interface Match {
   rotations?: RotationEntry[];
   substitutions?: Substitution[];
   timeouts?: Timeout[];
+  liberoReplacements?: LiberoReplacement[];
 }
 
 export interface CreateTeamInput {
@@ -136,6 +153,16 @@ export interface SubstituteInput {
 }
 
 export interface TimeoutInput {
+  team: ServingTeam;
+}
+
+export interface LiberoInInput {
+  team: ServingTeam;
+  liberoId: string;
+  position: number;
+}
+
+export interface LiberoOutInput {
   team: ServingTeam;
 }
 

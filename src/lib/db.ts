@@ -97,6 +97,22 @@ function initSchema(database: Database.Database) {
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
+
+    CREATE TABLE IF NOT EXISTS libero_replacements (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      libero_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      event_type TEXT NOT NULL CHECK(event_type IN ('in', 'out')),
+      position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 6),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id),
+      FOREIGN KEY (libero_id) REFERENCES players(id),
+      FOREIGN KEY (player_id) REFERENCES players(id)
+    );
   `);
   migrateSchema(database);
 }
@@ -186,6 +202,24 @@ function migrateSchema(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
       FOREIGN KEY (team_id) REFERENCES teams(id)
+    )
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS libero_replacements (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      libero_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      event_type TEXT NOT NULL CHECK(event_type IN ('in', 'out')),
+      position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 6),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (team_id) REFERENCES teams(id),
+      FOREIGN KEY (libero_id) REFERENCES players(id),
+      FOREIGN KEY (player_id) REFERENCES players(id)
     )
   `);
 }

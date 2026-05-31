@@ -12,7 +12,16 @@ import {
   needsGameCaptainAssignment,
 } from "@/lib/captains";
 import { getAllowedSubstitutesIn } from "@/lib/substitutions";
-import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, formatMatchDateTime, formatSetDuration, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
+import {
+  canLiberoOutAtP4,
+  getLiberoInOptions,
+  getLiberoOutPrompt,
+  isLiberoPlayer,
+  LIBERO_IN_POSITIONS,
+  LIBERO_OUT_POSITION,
+  type LiberoInOption,
+} from "@/lib/libero";
+import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, LiberoReplacement, formatMatchDateTime, formatSetDuration, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
 
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
@@ -440,10 +449,14 @@ function CourtRotation({
   gameCaptainId,
   setLiberoIds,
   substitutions,
+  liberoReplacements,
   timeouts,
   onOpenSubstitute,
+  onLiberoIn,
+  onLiberoOut,
   onTimeout,
   timeoutLoading,
+  liberoLoading,
 }: {
   teamName: string;
   rotations: Match["rotations"];
@@ -454,13 +467,29 @@ function CourtRotation({
   gameCaptainId: string | null;
   setLiberoIds: string[];
   substitutions: Substitution[];
+  liberoReplacements: LiberoReplacement[];
   timeouts: Timeout[];
   onOpenSubstitute?: () => void;
+  onLiberoIn?: () => void;
+  onLiberoOut?: () => void;
   onTimeout?: () => void;
   timeoutLoading?: boolean;
+  liberoLoading?: boolean;
 }) {
   const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
   const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
+  const playerAtP4Id = teamRotations.find((r) => r.position === LIBERO_OUT_POSITION)?.playerId;
+  const benchLiberos = setLiberoIds
+    .map((id) => players.find((p) => p.id === id))
+    .filter((p): p is Player => !!p && !onCourtPlayerIds.includes(p.id));
+  const liberoInOptions = getLiberoInOptions(teamRotations, benchLiberos);
+  const liberoOutReady = !!canLiberoOutAtP4(
+    playerAtP4Id,
+    setLiberoIds,
+    players,
+    liberoReplacements
+  );
+  const liberoInCount = liberoReplacements.filter((r) => r.eventType === "in").length;
   const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
   const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
   const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
@@ -478,6 +507,8 @@ function CourtRotation({
           const captainLabel = entry?.player
             ? getCaptainLabel(players, entry.player.id, gameCaptainId)
             : null;
+          const isActiveLibero =
+            !!entry?.player && isLiberoPlayer(entry.player, setLiberoIds) && onCourtPlayerIds.includes(entry.player.id);
           return (
             <div
               key={pos}
@@ -485,11 +516,18 @@ function CourtRotation({
             >
               <div className="flex items-center justify-between gap-1">
                 <div className="text-xs text-slate-400">P{pos}</div>
-                {captainLabel && (
-                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                    {captainLabel === "Team Captain" ? "TC" : "GC"}
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  {isActiveLibero && (
+                    <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">
+                      L
+                    </span>
+                  )}
+                  {captainLabel && (
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                      {captainLabel === "Team Captain" ? "TC" : "GC"}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="font-bold text-slate-900">
                 {entry?.player ? `#${entry.player.jerseyNumber}` : "—"}
@@ -506,8 +544,32 @@ function CourtRotation({
           No Team Captain or Game Captain on court. Substitute to assign a Game Captain.
         </p>
       )}
-      {(onTimeout || onOpenSubstitute) && (
+      {(onTimeout || onOpenSubstitute || onLiberoIn || onLiberoOut) && (
         <div className="mt-3 flex flex-wrap gap-2">
+          {onLiberoIn && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={onLiberoIn}
+              disabled={liberoLoading || setLiberoIds.length === 0 || liberoInOptions.length === 0}
+              className="text-xs"
+              title={`Libero in at P${LIBERO_IN_POSITIONS.join(", P")} only`}
+            >
+              Libero In ({liberoInCount})
+            </Button>
+          )}
+          {onLiberoOut && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={onLiberoOut}
+              disabled={liberoLoading || !liberoOutReady}
+              className="text-xs"
+              title="Libero out at P4 (returns replaced player)"
+            >
+              Libero Out
+            </Button>
+          )}
           {onTimeout && (
             <Button
               variant="secondary"
@@ -543,6 +605,22 @@ function CourtRotation({
           return entry?.position ?? null;
         }}
       />
+      {liberoReplacements.length > 0 && (
+        <div className="mt-4 border-t border-white/70 pt-4">
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            Libero History
+          </h4>
+          <div className="space-y-1">
+            {liberoReplacements.map((entry) => (
+              <div key={entry.id} className="rounded-lg bg-white/80 px-2 py-1.5 text-xs text-slate-700">
+                {entry.eventType === "in" ? "In" : "Out"} P{entry.position}: #
+                {entry.libero?.jerseyNumber} {entry.libero?.name} ↔ #{entry.player?.jerseyNumber}{" "}
+                {entry.player?.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {substitutions.length > 0 && (
         <div className="mt-4 border-t border-white/70 pt-4">
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -558,6 +636,168 @@ function CourtRotation({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function LiberoInModal({
+  teamName,
+  options,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  teamName: string;
+  options: LiberoInOption[];
+  onClose: () => void;
+  onConfirm: (position: number, liberoId: string) => void;
+  loading: boolean;
+}) {
+  const [position, setPosition] = useState<number | null>(
+    options.length === 1 ? options[0].position : null
+  );
+  const selectedOption = options.find((o) => o.position === position) ?? null;
+  const eligibleLiberos = selectedOption?.eligibleLiberos ?? [];
+  const [liberoId, setLiberoId] = useState(() => {
+    if (options.length === 1 && options[0].eligibleLiberos.length === 1) {
+      return options[0].eligibleLiberos[0].id;
+    }
+    return "";
+  });
+
+  function selectPosition(pos: number) {
+    setPosition(pos);
+    setLiberoId("");
+    const option = options.find((o) => o.position === pos);
+    if (option?.eligibleLiberos.length === 1) {
+      setLiberoId(option.eligibleLiberos[0].id);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-sm">
+        <h3 className="text-lg font-semibold text-slate-900">Libero In — {teamName}</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Choose a back-row player or libero at P1, P5, or P6 to replace, then select a bench libero.
+          Any bench libero can replace any eligible player, including switching between liberos.
+        </p>
+        <div className="mt-4">
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Out at P1, P5, or P6
+          </label>
+          {options.length === 0 ? (
+            <p className="text-sm text-slate-500">No eligible back-row positions available.</p>
+          ) : (
+          <div className="space-y-1">
+            {options.map((option) => (
+              <button
+                key={option.position}
+                type="button"
+                onClick={() => selectPosition(option.position)}
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  position === option.position
+                    ? "border-violet-500 bg-violet-50 font-medium text-violet-900"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
+                }`}
+              >
+                <span className="font-medium text-slate-500">P{option.position}</span>
+                <span className="font-medium">#{option.player.jerseyNumber}</span>
+                <span className="min-w-0 flex-1 truncate">{option.player.name}</span>
+              </button>
+            ))}
+          </div>
+          )}
+        </div>
+        {selectedOption && (
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-slate-700">Libero in</label>
+            <div className="space-y-1">
+              {eligibleLiberos.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setLiberoId(p.id)}
+                  className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    liberoId === p.id
+                      ? "border-violet-500 bg-violet-50 font-medium text-violet-900"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-violet-300"
+                  }`}
+                >
+                  <span className="font-medium">#{p.jerseyNumber}</span>
+                  <span className="truncate">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button
+            onClick={() => position && onConfirm(position, liberoId)}
+            disabled={loading || !position || !liberoId}
+          >
+            {loading ? "Saving..." : "Confirm Libero In"}
+          </Button>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function LiberoOutModal({
+  teamName,
+  libero,
+  player,
+  autoTriggered,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  teamName: string;
+  libero: Player;
+  player: Player;
+  autoTriggered?: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-sm">
+        <h3 className="text-lg font-semibold text-slate-900">Libero Out — {teamName}</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          {autoTriggered
+            ? "Rotation placed the libero at P4 (front row). Confirm libero out to restore the replaced player."
+            : "Replace the libero at P4 with the player they replaced."}
+        </p>
+        <div className="mt-4 space-y-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm">
+          <div className="flex items-center gap-2 text-slate-700">
+            <span className="font-medium text-slate-500">P4 out</span>
+            <span className="font-medium">#{libero.jerseyNumber}</span>
+            <span className="truncate">{libero.name}</span>
+            <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">
+              L
+            </span>
+          </div>
+          <div className="text-center text-slate-400">↓</div>
+          <div className="flex items-center gap-2 text-slate-700">
+            <span className="font-medium text-slate-500">P4 in</span>
+            <span className="font-medium">#{player.jerseyNumber}</span>
+            <span className="truncate">{player.name}</span>
+          </div>
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button onClick={onConfirm} disabled={loading}>
+            {loading ? "Saving..." : "Confirm Libero Out"}
+          </Button>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -879,8 +1119,21 @@ function LiveScoring({
   onSwitchCourt: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [liberoLoadingTeam, setLiberoLoadingTeam] = useState<ServingTeam | null>(null);
   const [timeoutLoadingTeam, setTimeoutLoadingTeam] = useState<ServingTeam | null>(null);
   const [timeoutModal, setTimeoutModal] = useState<{ teamName: string } | null>(null);
+  const [liberoInModal, setLiberoInModal] = useState<{
+    team: ServingTeam;
+    teamName: string;
+    options: LiberoInOption[];
+  } | null>(null);
+  const [liberoOutModal, setLiberoOutModal] = useState<{
+    team: ServingTeam;
+    teamName: string;
+    libero: Player;
+    player: Player;
+    autoTriggered?: boolean;
+  } | null>(null);
   const [subModal, setSubModal] = useState<{
     team: ServingTeam;
     teamId: string;
@@ -899,6 +1152,9 @@ function LiveScoring({
   const awayScore = summary.currentSet?.awayScore ?? 0;
 
   async function score(team: ServingTeam) {
+    const receivingTeam: ServingTeam = match.servingTeam === "home" ? "away" : "home";
+    const sideOut = team === receivingTeam;
+
     setLoading(true);
     try {
       const res = await fetch(`/api/matches/${match.id}/score`, {
@@ -909,6 +1165,9 @@ function LiveScoring({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       onUpdate(data);
+      if (sideOut) {
+        openLiberoOutPrompt(data, team, true);
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to score");
     } finally {
@@ -1026,6 +1285,90 @@ function LiveScoring({
     }
   }
 
+  function openLiberoIn(
+    team: ServingTeam,
+    teamId: string,
+    teamName: string,
+    players: Player[],
+    setLiberoIds: string[]
+  ) {
+    const teamRotations = match.rotations?.filter((r) => r.teamId === teamId) ?? [];
+    const onCourtIds = teamRotations.map((r) => r.playerId);
+    const benchLiberos = setLiberoIds
+      .map((id) => players.find((p) => p.id === id))
+      .filter((p): p is Player => !!p && !onCourtIds.includes(p.id));
+    const options = getLiberoInOptions(teamRotations, benchLiberos);
+    if (options.length === 0) return;
+    setLiberoInModal({ team, teamName, options });
+  }
+
+  function openLiberoOutPrompt(updatedMatch: Match, team: ServingTeam, autoTriggered = false) {
+    const teamId = team === "home" ? updatedMatch.homeTeamId : updatedMatch.awayTeamId;
+    const teamName =
+      team === "home" ? updatedMatch.homeTeam?.name ?? "Home" : updatedMatch.awayTeam?.name ?? "Away";
+    const players =
+      team === "home"
+        ? updatedMatch.homeTeam?.players ?? []
+        : updatedMatch.awayTeam?.players ?? [];
+    const currentSet = updatedMatch.sets?.find((s) => s.setNumber === updatedMatch.currentSet);
+    const setLiberoIds =
+      team === "home" ? currentSet?.homeLiberoIds ?? [] : currentSet?.awayLiberoIds ?? [];
+    const teamRotations = updatedMatch.rotations?.filter((r) => r.teamId === teamId) ?? [];
+    const playerAtP4Id = teamRotations.find((r) => r.position === LIBERO_OUT_POSITION)?.playerId;
+    const teamLiberoReplacements =
+      updatedMatch.liberoReplacements?.filter(
+        (r) => r.teamId === teamId && r.setNumber === updatedMatch.currentSet
+      ) ?? [];
+    const prompt = getLiberoOutPrompt(
+      playerAtP4Id,
+      setLiberoIds,
+      players,
+      teamLiberoReplacements
+    );
+    if (!prompt) return;
+    setLiberoOutModal({ team, teamName, ...prompt, autoTriggered });
+  }
+
+  async function confirmLiberoIn(team: ServingTeam, position: number, liberoId: string) {
+    setLiberoLoadingTeam(team);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/libero-in`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team, liberoId, position }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setLiberoInModal(null);
+      onUpdate(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed libero in");
+    } finally {
+      setLiberoLoadingTeam(null);
+    }
+  }
+
+  async function confirmLiberoOut() {
+    if (!liberoOutModal) return;
+    const team = liberoOutModal.team;
+    setLiberoLoadingTeam(team);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/libero-out`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setLiberoOutModal(null);
+      onUpdate(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed libero out");
+    } finally {
+      setLiberoLoadingTeam(null);
+    }
+  }
+
   if (match.status === "completed") {
     return (
       <Card className="text-center">
@@ -1100,6 +1443,28 @@ function LiveScoring({
         <TimeoutTimerModal
           teamName={timeoutModal.teamName}
           onClose={() => setTimeoutModal(null)}
+        />
+      )}
+      {liberoInModal && (
+        <LiberoInModal
+          teamName={liberoInModal.teamName}
+          options={liberoInModal.options}
+          onClose={() => setLiberoInModal(null)}
+          onConfirm={(position, liberoId) =>
+            confirmLiberoIn(liberoInModal.team, position, liberoId)
+          }
+          loading={liberoLoadingTeam === liberoInModal.team}
+        />
+      )}
+      {liberoOutModal && (
+        <LiberoOutModal
+          teamName={liberoOutModal.teamName}
+          libero={liberoOutModal.libero}
+          player={liberoOutModal.player}
+          autoTriggered={liberoOutModal.autoTriggered}
+          onClose={() => setLiberoOutModal(null)}
+          onConfirm={confirmLiberoOut}
+          loading={liberoLoadingTeam === liberoOutModal.team}
         />
       )}
       {subModal && (
@@ -1187,6 +1552,10 @@ function LiveScoring({
             match.timeouts?.filter(
               (t) => t.teamId === teamId && t.setNumber === match.currentSet
             ) ?? [];
+          const teamLiberoReplacements =
+            match.liberoReplacements?.filter(
+              (r) => r.teamId === teamId && r.setNumber === match.currentSet
+            ) ?? [];
 
           return (
             <CourtRotation
@@ -1200,8 +1569,12 @@ function LiveScoring({
               gameCaptainId={gameCaptainId}
               setLiberoIds={setLiberoIds}
               substitutions={teamSubstitutions}
+              liberoReplacements={teamLiberoReplacements}
               timeouts={teamTimeouts}
+              liberoLoading={liberoLoadingTeam === team}
               timeoutLoading={timeoutLoadingTeam === team}
+              onLiberoIn={() => openLiberoIn(team, teamId, teamName, players, setLiberoIds)}
+              onLiberoOut={() => openLiberoOutPrompt(match, team)}
               onTimeout={() => callTeamTimeout(team, teamName)}
               onOpenSubstitute={() =>
                 openSubstitution(
