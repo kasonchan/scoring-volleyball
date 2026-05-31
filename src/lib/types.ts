@@ -36,8 +36,8 @@ export interface MatchSet {
   courtSwapped?: boolean;
   startedAt?: string | null;
   endedAt?: string | null;
-  homeLiberoId?: string | null;
-  awayLiberoId?: string | null;
+  homeLiberoIds?: string[];
+  awayLiberoIds?: string[];
 }
 
 export interface RotationEntry {
@@ -124,8 +124,8 @@ export interface SetRotationInput {
   homeGameCaptainId?: string | null;
   awayGameCaptainId?: string | null;
   courtSwapped?: boolean;
-  homeLiberoId?: string | null;
-  awayLiberoId?: string | null;
+  homeLiberoIds?: string[];
+  awayLiberoIds?: string[];
 }
 
 export interface SubstituteInput {

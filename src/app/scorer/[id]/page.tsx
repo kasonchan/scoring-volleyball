@@ -22,13 +22,13 @@ function TeamRosterList({
   color,
   onCourtPositionByPlayerId,
   gameCaptainId = null,
-  setLiberoId = null,
+  setLiberoIds = [],
 }: {
   players: Player[];
   color: "blue" | "teal";
   onCourtPositionByPlayerId: (playerId: string) => number | null;
   gameCaptainId?: string | null;
-  setLiberoId?: string | null;
+  setLiberoIds?: string[];
 }) {
   return (
     <div className="mt-4 border-t border-white/70 pt-4">
@@ -43,7 +43,7 @@ function TeamRosterList({
               const courtPosition = onCourtPositionByPlayerId(p.id);
               const onCourt = courtPosition !== null;
               const captainLabel = onCourt ? getCaptainLabel(players, p.id, gameCaptainId) : null;
-              const isSetLibero = setLiberoId === p.id;
+              const isSetLibero = setLiberoIds.includes(p.id);
               return (
                 <div
                   key={p.id}
@@ -88,10 +88,10 @@ function TeamRosterList({
   );
 }
 
-function getPreviousSetLibero(match: Match, team: "home" | "away"): string | null {
+function getPreviousSetLiberos(match: Match, team: "home" | "away"): string[] {
   const prev = match.sets?.find((s) => s.setNumber === match.currentSet - 1);
-  if (!prev) return null;
-  return team === "home" ? prev.homeLiberoId ?? null : prev.awayLiberoId ?? null;
+  if (!prev) return [];
+  return team === "home" ? prev.homeLiberoIds ?? [] : prev.awayLiberoIds ?? [];
 }
 
 function liberoCandidates(players: Player[], rotation: (string | null)[]): Player[] {
@@ -120,8 +120,8 @@ function RotationSetup({
   const [awayRotation, setAwayRotation] = useState<(string | null)[]>(Array(6).fill(null));
   const [homeGameCaptain, setHomeGameCaptain] = useState<string | null>(null);
   const [awayGameCaptain, setAwayGameCaptain] = useState<string | null>(null);
-  const [homeLibero, setHomeLibero] = useState<string | null>(() => getPreviousSetLibero(match, "home"));
-  const [awayLibero, setAwayLibero] = useState<string | null>(() => getPreviousSetLibero(match, "away"));
+  const [homeLiberos, setHomeLiberos] = useState<string[]>(() => getPreviousSetLiberos(match, "home"));
+  const [awayLiberos, setAwayLiberos] = useState<string[]>(() => getPreviousSetLiberos(match, "away"));
   const [servingTeam, setServingTeam] = useState<ServingTeam>("home");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -148,16 +148,16 @@ function RotationSetup({
     const rotation = team === "home" ? homeRotation : awayRotation;
     const gameCaptain = team === "home" ? homeGameCaptain : awayGameCaptain;
     const setGameCaptain = team === "home" ? setHomeGameCaptain : setAwayGameCaptain;
-    const libero = team === "home" ? homeLibero : awayLibero;
-    const setLibero = team === "home" ? setHomeLibero : setAwayLibero;
+    const liberos = team === "home" ? homeLiberos : awayLiberos;
+    const setLiberos = team === "home" ? setHomeLiberos : setAwayLiberos;
     const updated = [...rotation];
     updated[position] = playerId;
     setter(updated);
     if (gameCaptain && !updated.includes(gameCaptain)) {
       setGameCaptain(null);
     }
-    if (libero && updated.includes(libero)) {
-      setLibero(null);
+    if (liberos.some((id) => updated.includes(id))) {
+      setLiberos(liberos.filter((id) => !updated.includes(id)));
     }
   }
 
@@ -190,8 +190,8 @@ function RotationSetup({
           servingTeam,
           homeGameCaptainId: homeGameCaptain,
           awayGameCaptainId: awayGameCaptain,
-          homeLiberoId: homeLibero,
-          awayLiberoId: awayLibero,
+          homeLiberoIds: homeLiberos,
+          awayLiberoIds: awayLiberos,
           courtSwapped,
         }),
       });
@@ -214,8 +214,8 @@ function RotationSetup({
     color: "blue" | "teal",
     gameCaptain: string | null,
     onGameCaptainChange: (playerId: string | null) => void,
-    setLibero: string | null,
-    onSetLiberoChange: (playerId: string | null) => void
+    setLiberos: string[],
+    onSetLiberosChange: (playerIds: string[]) => void
   ) {
     const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
     const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
@@ -277,29 +277,46 @@ function RotationSetup({
           </div>
         )}
         <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
-          <p className="text-sm font-medium text-violet-900">Libero for this set</p>
+          <p className="text-sm font-medium text-violet-900">Liberos for this set</p>
           <p className="mt-0.5 text-xs text-violet-700">
-            Select a bench player. Liberos cannot start on court.
+            Select one or more bench players. Liberos cannot start on court.
           </p>
-          <select
-            value={setLibero ?? ""}
-            onChange={(e) => onSetLiberoChange(e.target.value || null)}
-            className="mt-2 w-full rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
-          >
-            <option value="">No libero assigned</option>
-            {benchLiberos.map((p) => (
-              <option key={p.id} value={p.id}>
-                #{p.jerseyNumber} {p.name}
-                {p.role === "libero" ? " (Libero)" : ""}
-              </option>
-            ))}
-          </select>
+          {benchLiberos.length === 0 ? (
+            <p className="mt-2 text-sm text-violet-800">No bench players available.</p>
+          ) : (
+            <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+              {benchLiberos.map((p) => (
+                <label
+                  key={p.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 bg-white px-2 py-1.5 text-sm text-slate-700 hover:border-violet-300"
+                >
+                  <input
+                    type="checkbox"
+                    checked={setLiberos.includes(p.id)}
+                    onChange={(e) => {
+                      onSetLiberosChange(
+                        e.target.checked
+                          ? [...setLiberos, p.id]
+                          : setLiberos.filter((id) => id !== p.id)
+                      );
+                    }}
+                    className="rounded border-violet-300 text-violet-600 focus:ring-orange-500"
+                  />
+                  <span className="font-medium">#{p.jerseyNumber}</span>
+                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  {p.role === "libero" && (
+                    <span className="shrink-0 text-xs text-violet-600">Roster Libero</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         <TeamRosterList
           players={players}
           color={color}
           gameCaptainId={gameCaptain}
-          setLiberoId={setLibero}
+          setLiberoIds={setLiberos}
           onCourtPositionByPlayerId={(playerId) => {
             const positionIndex = rotation.indexOf(playerId);
             return positionIndex === -1 ? null : positionIndex + 1;
@@ -370,8 +387,8 @@ function RotationSetup({
                 isHome ? "blue" : "teal",
                 isHome ? homeGameCaptain : awayGameCaptain,
                 isHome ? setHomeGameCaptain : setAwayGameCaptain,
-                isHome ? homeLibero : awayLibero,
-                isHome ? setHomeLibero : setAwayLibero
+                isHome ? homeLiberos : awayLiberos,
+                isHome ? setHomeLiberos : setAwayLiberos
               )}
             </Fragment>
           );
@@ -421,7 +438,7 @@ function CourtRotation({
   side,
   players,
   gameCaptainId,
-  setLiberoId,
+  setLiberoIds,
   substitutions,
   timeouts,
   onOpenSubstitute,
@@ -435,7 +452,7 @@ function CourtRotation({
   side: "left" | "right";
   players: Player[];
   gameCaptainId: string | null;
-  setLiberoId: string | null;
+  setLiberoIds: string[];
   substitutions: Substitution[];
   timeouts: Timeout[];
   onOpenSubstitute?: () => void;
@@ -520,7 +537,7 @@ function CourtRotation({
         players={players}
         color={color}
         gameCaptainId={gameCaptainId}
-        setLiberoId={setLiberoId}
+        setLiberoIds={setLiberoIds}
         onCourtPositionByPlayerId={(playerId) => {
           const entry = teamRotations.find((r) => r.playerId === playerId);
           return entry?.position ?? null;
@@ -671,7 +688,7 @@ function SubstitutionModal({
   players,
   substitutions,
   currentGameCaptainId,
-  setLiberoId,
+  setLiberoIds,
   side,
   color,
   serving,
@@ -685,7 +702,7 @@ function SubstitutionModal({
   players: Player[];
   substitutions: Substitution[];
   currentGameCaptainId: string | null;
-  setLiberoId: string | null;
+  setLiberoIds: string[];
   side: "left" | "right";
   color: "blue" | "teal";
   serving: boolean;
@@ -707,7 +724,7 @@ function SubstitutionModal({
   const currentPlayer = currentEntry?.player;
   const bench = benchPlayers(players, onCourtPlayerIds);
   const allowedBench = currentPlayer
-    ? getAllowedSubstitutesIn(currentPlayer.id, bench, substitutions, setLiberoId)
+    ? getAllowedSubstitutesIn(currentPlayer.id, bench, substitutions, setLiberoIds)
     : [];
 
   const projectedOnCourt =
@@ -872,7 +889,7 @@ function LiveScoring({
     rotations: Match["rotations"];
     substitutions: Substitution[];
     gameCaptainId: string | null;
-    setLiberoId: string | null;
+    setLiberoIds: string[];
     side: "left" | "right";
     color: "blue" | "teal";
     serving: boolean;
@@ -964,7 +981,7 @@ function LiveScoring({
     teamName: string,
     players: Player[],
     gameCaptainId: string | null,
-    setLiberoId: string | null,
+    setLiberoIds: string[],
     side: "left" | "right",
     color: "blue" | "teal",
     serving: boolean
@@ -983,7 +1000,7 @@ function LiveScoring({
       rotations: teamRotations,
       substitutions: teamSubstitutions,
       gameCaptainId,
-      setLiberoId,
+      setLiberoIds,
       side,
       color,
       serving,
@@ -1092,7 +1109,7 @@ function LiveScoring({
           players={subModal.players}
           substitutions={subModal.substitutions}
           currentGameCaptainId={subModal.gameCaptainId}
-          setLiberoId={subModal.setLiberoId}
+          setLiberoIds={subModal.setLiberoIds}
           side={subModal.side}
           color={subModal.color}
           serving={subModal.serving}
@@ -1158,10 +1175,10 @@ function LiveScoring({
             teamId === match.homeTeamId
               ? currentSetRow?.homeGameCaptainId ?? null
               : currentSetRow?.awayGameCaptainId ?? null;
-          const setLiberoId =
+          const setLiberoIds =
             teamId === match.homeTeamId
-              ? currentSetRow?.homeLiberoId ?? null
-              : currentSetRow?.awayLiberoId ?? null;
+              ? currentSetRow?.homeLiberoIds ?? []
+              : currentSetRow?.awayLiberoIds ?? [];
           const teamSubstitutions =
             match.substitutions?.filter(
               (s) => s.teamId === teamId && s.setNumber === match.currentSet
@@ -1181,7 +1198,7 @@ function LiveScoring({
               side={side}
               players={players}
               gameCaptainId={gameCaptainId}
-              setLiberoId={setLiberoId}
+              setLiberoIds={setLiberoIds}
               substitutions={teamSubstitutions}
               timeouts={teamTimeouts}
               timeoutLoading={timeoutLoadingTeam === team}
@@ -1193,7 +1210,7 @@ function LiveScoring({
                   teamName,
                   players,
                   gameCaptainId,
-                  setLiberoId,
+                  setLiberoIds,
                   side,
                   color,
                   serving

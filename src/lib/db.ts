@@ -140,6 +140,25 @@ function migrateSchema(database: Database.Database) {
   if (!setNames.has("away_libero_id")) {
     database.exec("ALTER TABLE match_sets ADD COLUMN away_libero_id TEXT REFERENCES players(id)");
   }
+  if (!setNames.has("home_libero_ids")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN home_libero_ids TEXT");
+  }
+  if (!setNames.has("away_libero_ids")) {
+    database.exec("ALTER TABLE match_sets ADD COLUMN away_libero_ids TEXT");
+  }
+
+  database.exec(`
+    UPDATE match_sets
+    SET home_libero_ids = json_array(home_libero_id)
+    WHERE home_libero_id IS NOT NULL
+      AND (home_libero_ids IS NULL OR home_libero_ids = '' OR home_libero_ids = '[]')
+  `);
+  database.exec(`
+    UPDATE match_sets
+    SET away_libero_ids = json_array(away_libero_id)
+    WHERE away_libero_id IS NOT NULL
+      AND (away_libero_ids IS NULL OR away_libero_ids = '' OR away_libero_ids = '[]')
+  `);
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS substitutions (

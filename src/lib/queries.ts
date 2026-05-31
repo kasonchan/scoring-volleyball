@@ -57,6 +57,22 @@ function rowToTeam(row: Record<string, unknown>, players: Player[] = []): Team {
   };
 }
 
+function parseLiberoIds(row: Record<string, unknown>, pluralKey: string, singularKey: string): string[] {
+  const json = row[pluralKey] as string | null | undefined;
+  if (json) {
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      if (Array.isArray(parsed)) {
+        return [...new Set(parsed.filter((id): id is string => typeof id === "string" && id.length > 0))];
+      }
+    } catch {
+      /* fall through to legacy column */
+    }
+  }
+  const single = row[singularKey] as string | null | undefined;
+  return single ? [single] : [];
+}
+
 function rowToSet(row: Record<string, unknown>): MatchSet {
   return {
     id: row.id as string,
@@ -70,8 +86,8 @@ function rowToSet(row: Record<string, unknown>): MatchSet {
     courtSwapped: Boolean(row.court_swapped),
     startedAt: (row.started_at as string | null) ?? null,
     endedAt: (row.ended_at as string | null) ?? null,
-    homeLiberoId: (row.home_libero_id as string | null) ?? null,
-    awayLiberoId: (row.away_libero_id as string | null) ?? null,
+    homeLiberoIds: parseLiberoIds(row, "home_libero_ids", "home_libero_id"),
+    awayLiberoIds: parseLiberoIds(row, "away_libero_ids", "away_libero_id"),
   };
 }
 
@@ -122,29 +138,31 @@ function validateSetLiberos(
   match: Match,
   homeRotation: string[],
   awayRotation: string[],
-  homeLiberoId: string | null,
-  awayLiberoId: string | null
+  homeLiberoIds: string[],
+  awayLiberoIds: string[]
 ) {
-  const checks: [Player[], string[], string | null, string][] = [
-    [match.homeTeam?.players ?? [], homeRotation, homeLiberoId, "Home"],
-    [match.awayTeam?.players ?? [], awayRotation, awayLiberoId, "Away"],
+  const checks: [Player[], string[], string[], string][] = [
+    [match.homeTeam?.players ?? [], homeRotation, homeLiberoIds, "Home"],
+    [match.awayTeam?.players ?? [], awayRotation, awayLiberoIds, "Away"],
   ];
 
-  for (const [players, rotation, liberoId, label] of checks) {
-    if (!liberoId) continue;
-    const player = players.find((p) => p.id === liberoId);
-    if (!player) throw new Error(`${label} libero must be on the team roster`);
-    if (rotation.includes(liberoId)) {
-      throw new Error(`${label} libero cannot be in the starting rotation`);
-    }
-    if (player.role === "team_captain") {
-      throw new Error(`${label} libero cannot be the Team Captain`);
+  for (const [players, rotation, liberoIds, label] of checks) {
+    const uniqueIds = [...new Set(liberoIds)];
+    for (const liberoId of uniqueIds) {
+      const player = players.find((p) => p.id === liberoId);
+      if (!player) throw new Error(`${label} libero must be on the team roster`);
+      if (rotation.includes(liberoId)) {
+        throw new Error(`${label} libero cannot be in the starting rotation`);
+      }
+      if (player.role === "team_captain") {
+        throw new Error(`${label} libero cannot be the Team Captain`);
+      }
     }
   }
 
   return {
-    homeLibero: homeLiberoId,
-    awayLibero: awayLiberoId,
+    homeLiberos: [...new Set(homeLiberoIds)],
+    awayLiberos: [...new Set(awayLiberoIds)],
   };
 }
 
@@ -163,13 +181,13 @@ function updateSetGameCaptains(
 function updateSetLiberos(
   matchId: string,
   setNumber: number,
-  homeLiberoId: string | null,
-  awayLiberoId: string | null
+  homeLiberoIds: string[],
+  awayLiberoIds: string[]
 ) {
   const db = getDb();
   db.prepare(
-    "UPDATE match_sets SET home_libero_id = ?, away_libero_id = ? WHERE match_id = ? AND set_number = ?"
-  ).run(homeLiberoId, awayLiberoId, matchId, setNumber);
+    "UPDATE match_sets SET home_libero_ids = ?, away_libero_ids = ?, home_libero_id = NULL, away_libero_id = NULL WHERE match_id = ? AND set_number = ?"
+  ).run(JSON.stringify(homeLiberoIds), JSON.stringify(awayLiberoIds), matchId, setNumber);
 }
 
 function ensureSetRow(matchId: string, setNumber: number, courtSwapped = false) {
@@ -506,12 +524,12 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
     input.homeGameCaptainId ?? null,
     input.awayGameCaptainId ?? null
   );
-  const { homeLibero, awayLibero } = validateSetLiberos(
+  const { homeLiberos, awayLiberos } = validateSetLiberos(
     match,
     input.homeRotation,
     input.awayRotation,
-    input.homeLiberoId ?? null,
-    input.awayLiberoId ?? null
+    input.homeLiberoIds ?? [],
+    input.awayLiberoIds ?? []
   );
   const courtSwapped = input.courtSwapped ?? false;
 
@@ -534,11 +552,20 @@ export function setMatchRotation(matchId: string, input: SetRotationInput): Matc
 
   if (!existingSet) {
     db.prepare(
-      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id, home_libero_id, away_libero_id, court_swapped) VALUES (?, ?, ?, 0, 0, ?, ?, ?, ?, ?)"
-    ).run(uuidv4(), matchId, setNumber, homeGc, awayGc, homeLibero, awayLibero, courtSwapped ? 1 : 0);
+      "INSERT INTO match_sets (id, match_id, set_number, home_score, away_score, home_game_captain_id, away_game_captain_id, home_libero_ids, away_libero_ids, court_swapped) VALUES (?, ?, ?, 0, 0, ?, ?, ?, ?, ?)"
+    ).run(
+      uuidv4(),
+      matchId,
+      setNumber,
+      homeGc,
+      awayGc,
+      JSON.stringify(homeLiberos),
+      JSON.stringify(awayLiberos),
+      courtSwapped ? 1 : 0
+    );
   } else {
     updateSetGameCaptains(matchId, setNumber, homeGc, awayGc);
-    updateSetLiberos(matchId, setNumber, homeLibero, awayLibero);
+    updateSetLiberos(matchId, setNumber, homeLiberos, awayLiberos);
     updateSetCourtSwapped(matchId, setNumber, courtSwapped);
   }
 
@@ -594,11 +621,11 @@ export function substitutePlayer(matchId: string, input: SubstituteInput): Match
     throw new Error("Substitute player is already on court");
   }
 
-  const setLiberoId =
-    input.team === "home" ? currentSet.homeLiberoId ?? null : currentSet.awayLiberoId ?? null;
+  const setLiberoIds =
+    input.team === "home" ? currentSet.homeLiberoIds ?? [] : currentSet.awayLiberoIds ?? [];
   const setSubstitutions = getMatchSubstitutions(matchId, setNumber).filter((s) => s.teamId === teamId);
   const bench = players.filter((p) => !onCourtIds.includes(p.id));
-  const allowed = getAllowedSubstitutesIn(playerOutId, bench, setSubstitutions, setLiberoId);
+  const allowed = getAllowedSubstitutesIn(playerOutId, bench, setSubstitutions, setLiberoIds);
   if (!allowed.some((p) => p.id === input.playerInId)) {
     const partner = allowed[0];
     if (partner) {
