@@ -113,6 +113,17 @@ function initSchema(database: Database.Database) {
       FOREIGN KEY (libero_id) REFERENCES players(id),
       FOREIGN KEY (player_id) REFERENCES players(id)
     );
+
+    CREATE TABLE IF NOT EXISTS rallies (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      home_score INTEGER NOT NULL,
+      away_score INTEGER NOT NULL,
+      serving_team TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    );
   `);
   migrateSchema(database);
 }
@@ -220,6 +231,19 @@ function migrateSchema(database: Database.Database) {
       FOREIGN KEY (team_id) REFERENCES teams(id),
       FOREIGN KEY (libero_id) REFERENCES players(id),
       FOREIGN KEY (player_id) REFERENCES players(id)
+    )
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS rallies (
+      id TEXT PRIMARY KEY,
+      match_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      home_score INTEGER NOT NULL,
+      away_score INTEGER NOT NULL,
+      serving_team TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
     )
   `);
 }

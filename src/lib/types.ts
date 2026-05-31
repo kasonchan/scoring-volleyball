@@ -71,6 +71,16 @@ export interface Timeout {
   createdAt: string;
 }
 
+export interface Rally {
+  id: string;
+  matchId: string;
+  setNumber: number;
+  homeScore: number;
+  awayScore: number;
+  servingTeam: ServingTeam | null;
+  createdAt: string;
+}
+
 export type LiberoEventType = "in" | "out";
 
 export interface LiberoReplacement {
@@ -108,6 +118,7 @@ export interface Match {
   substitutions?: Substitution[];
   timeouts?: Timeout[];
   liberoReplacements?: LiberoReplacement[];
+  rallies?: Rally[];
 }
 
 export interface CreateTeamInput {
@@ -223,6 +234,16 @@ export function formatMatchDateTime(iso: string | null): string | null {
   return d.toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
+  });
+}
+
+export function formatRallyTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
   });
 }
 

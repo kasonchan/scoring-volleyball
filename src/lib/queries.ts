@@ -18,6 +18,7 @@ import {
   Substitution,
   Timeout,
   TimeoutInput,
+  Rally,
   LiberoReplacement,
   LiberoInInput,
   LiberoOutInput,
@@ -31,10 +32,13 @@ import {
   normalizeGameCaptainId,
 } from "./captains";
 import { getAllowedSubstitutesIn } from "./substitutions";
+import { isRallyInProgress } from "./rally";
 import {
   canLiberoOutAtP4,
   getActiveLiberoIns,
+  getLiberoInOptions,
   isLiberoInPosition,
+  isLiberoPlayer,
   LIBERO_IN_POSITIONS,
   LIBERO_OUT_POSITION,
   resolveLiberoReplacementPlayer,
@@ -373,6 +377,7 @@ function enrichMatch(row: Record<string, unknown>): Match {
   match.substitutions = getMatchSubstitutions(match.id, match.currentSet);
   match.timeouts = getMatchTimeouts(match.id, match.currentSet);
   match.liberoReplacements = getMatchLiberoReplacements(match.id, match.currentSet);
+  match.rallies = getMatchRallies(match.id, match.currentSet);
   return match;
 }
 
@@ -481,6 +486,64 @@ function getMatchTimeouts(matchId: string, setNumber: number): Timeout[] {
     )
     .all(matchId, setNumber) as Record<string, unknown>[];
   return rows.map(rowToTimeout);
+}
+
+function rowToRally(row: Record<string, unknown>): Rally {
+  return {
+    id: row.id as string,
+    matchId: row.match_id as string,
+    setNumber: row.set_number as number,
+    homeScore: row.home_score as number,
+    awayScore: row.away_score as number,
+    servingTeam: (row.serving_team as ServingTeam | null) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+function getMatchRallies(matchId: string, setNumber: number): Rally[] {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT * FROM rallies WHERE match_id = ? AND set_number = ? ORDER BY created_at"
+    )
+    .all(matchId, setNumber) as Record<string, unknown>[];
+  return rows.map(rowToRally);
+}
+
+function assertRallyInProgress(matchId: string, setNumber: number) {
+  const db = getDb();
+  const setRow = db
+    .prepare("SELECT home_score, away_score FROM match_sets WHERE match_id = ? AND set_number = ?")
+    .get(matchId, setNumber) as Record<string, unknown> | undefined;
+  if (!setRow) throw new Error("Current set not found");
+  const rallies = getMatchRallies(matchId, setNumber);
+  if (
+    !isRallyInProgress(
+      rallies,
+      setRow.home_score as number,
+      setRow.away_score as number
+    )
+  ) {
+    throw new Error("Start a rally before scoring");
+  }
+}
+
+function assertRallyNotInProgress(matchId: string, setNumber: number) {
+  const db = getDb();
+  const setRow = db
+    .prepare("SELECT home_score, away_score FROM match_sets WHERE match_id = ? AND set_number = ?")
+    .get(matchId, setNumber) as Record<string, unknown> | undefined;
+  if (!setRow) throw new Error("Current set not found");
+  const rallies = getMatchRallies(matchId, setNumber);
+  if (
+    isRallyInProgress(
+      rallies,
+      setRow.home_score as number,
+      setRow.away_score as number
+    )
+  ) {
+    throw new Error("Not allowed during an active rally — wait until the rally ends");
+  }
 }
 
 function rowToLiberoReplacement(row: Record<string, unknown>): LiberoReplacement {
@@ -661,6 +724,7 @@ export function substitutePlayer(matchId: string, input: SubstituteInput): Match
   if (input.position < 1 || input.position > 6) throw new Error("Position must be between 1 and 6");
 
   const setNumber = match.currentSet;
+  assertRallyNotInProgress(matchId, setNumber);
   const teamId = input.team === "home" ? match.homeTeamId : match.awayTeamId;
   const players = input.team === "home" ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [];
   const currentSet = match.sets?.find((s) => s.setNumber === setNumber);
@@ -745,6 +809,7 @@ export function liberoIn(matchId: string, input: LiberoInInput): Match {
   }
 
   const setNumber = match.currentSet;
+  assertRallyNotInProgress(matchId, setNumber);
   const teamId = input.team === "home" ? match.homeTeamId : match.awayTeamId;
   const players = input.team === "home" ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [];
   const currentSet = match.sets?.find((s) => s.setNumber === setNumber);
@@ -787,6 +852,26 @@ export function liberoIn(matchId: string, input: LiberoInInput): Match {
     throw new Error("Libero must be on the bench");
   }
 
+  const teamRotations = getMatchRotations(matchId, setNumber).filter((r) => r.teamId === teamId);
+  const allowedOptions = getLiberoInOptions(
+    teamRotations,
+    benchLiberos,
+    setLiberoIds
+  );
+  const selectedOption = allowedOptions.find((o) => o.position === input.position);
+  if (!selectedOption) {
+    const liberoOnCourt = teamRotations.some(
+      (r) => r.player && isLiberoPlayer(r.player, setLiberoIds)
+    );
+    if (liberoOnCourt) {
+      throw new Error("With a libero on court, only a bench libero swap at that position is allowed");
+    }
+    throw new Error("No eligible back-row position for libero in");
+  }
+  if (!selectedOption.eligibleLiberos.some((p) => p.id === input.liberoId)) {
+    throw new Error("Selected libero cannot replace this player");
+  }
+
   const replacedPlayerId = resolveLiberoReplacementPlayer(
     playerOutId,
     setLiberoIds,
@@ -815,6 +900,8 @@ export function liberoOut(matchId: string, input: LiberoOutInput): Match {
   if (match.status !== "in_progress") throw new Error("Match is not in progress");
 
   const setNumber = match.currentSet;
+  assertRallyNotInProgress(matchId, setNumber);
+
   const teamId = input.team === "home" ? match.homeTeamId : match.awayTeamId;
   const players = input.team === "home" ? match.homeTeam?.players ?? [] : match.awayTeam?.players ?? [];
   const currentSet = match.sets?.find((s) => s.setNumber === setNumber);
@@ -855,6 +942,8 @@ export function callTimeout(matchId: string, input: TimeoutInput): Match {
   if (match.status !== "in_progress") throw new Error("Match is not in progress");
 
   const setNumber = match.currentSet;
+  assertRallyNotInProgress(matchId, setNumber);
+
   const teamId = input.team === "home" ? match.homeTeamId : match.awayTeamId;
   const teamTimeouts = getMatchTimeouts(matchId, setNumber).filter((t) => t.teamId === teamId);
 
@@ -865,6 +954,43 @@ export function callTimeout(matchId: string, input: TimeoutInput): Match {
   db.prepare(
     "INSERT INTO timeouts (id, match_id, team_id, set_number) VALUES (?, ?, ?, ?)"
   ).run(uuidv4(), matchId, teamId, setNumber);
+
+  return getMatch(matchId)!;
+}
+
+export function startRally(matchId: string): Match {
+  const db = getDb();
+  const match = getMatch(matchId);
+  if (!match) throw new Error("Match not found");
+  if (match.status !== "in_progress") throw new Error("Match is not in progress");
+
+  const setNumber = match.currentSet;
+  const setRow = db
+    .prepare("SELECT * FROM match_sets WHERE match_id = ? AND set_number = ?")
+    .get(matchId, setNumber) as Record<string, unknown> | undefined;
+  if (!setRow) throw new Error("Current set not found");
+
+  const rallies = getMatchRallies(matchId, setNumber);
+  if (
+    isRallyInProgress(
+      rallies,
+      setRow.home_score as number,
+      setRow.away_score as number
+    )
+  ) {
+    throw new Error("Rally already in play");
+  }
+
+  db.prepare(
+    "INSERT INTO rallies (id, match_id, set_number, home_score, away_score, serving_team) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    uuidv4(),
+    matchId,
+    setNumber,
+    setRow.home_score as number,
+    setRow.away_score as number,
+    match.servingTeam
+  );
 
   return getMatch(matchId)!;
 }
@@ -881,6 +1007,8 @@ export function scorePoint(matchId: string, team: ServingTeam): Match {
     .get(matchId, setNumber) as Record<string, unknown> | undefined;
 
   if (!setRow) throw new Error("Current set not found");
+
+  assertRallyInProgress(matchId, setNumber);
 
   let homeScore = setRow.home_score as number;
   let awayScore = setRow.away_score as number;

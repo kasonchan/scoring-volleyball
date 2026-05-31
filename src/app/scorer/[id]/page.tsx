@@ -13,15 +13,16 @@ import {
 } from "@/lib/captains";
 import { getAllowedSubstitutesIn } from "@/lib/substitutions";
 import {
-  canLiberoOutAtP4,
   getLiberoInOptions,
   getLiberoOutPrompt,
+  isLiberoOnCourt,
   isLiberoPlayer,
   LIBERO_IN_POSITIONS,
   LIBERO_OUT_POSITION,
   type LiberoInOption,
 } from "@/lib/libero";
-import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, LiberoReplacement, formatMatchDateTime, formatSetDuration, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
+import { isRallyInProgress, needsRallyStart as matchNeedsRallyStart } from "@/lib/rally";
+import { Match, Player, PLAYER_ROLE_LABELS, ServingTeam, Substitution, Timeout, LiberoReplacement, formatMatchDateTime, formatRallyTime, formatSetDuration, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
 
 const LEFT_COURT_POSITIONS = [5, 4, 6, 3, 1, 2] as const;
 const RIGHT_COURT_POSITIONS = [2, 1, 3, 6, 4, 5] as const;
@@ -453,10 +454,10 @@ function CourtRotation({
   timeouts,
   onOpenSubstitute,
   onLiberoIn,
-  onLiberoOut,
   onTimeout,
   timeoutLoading,
   liberoLoading,
+  rallyInProgress,
 }: {
   teamName: string;
   rotations: Match["rotations"];
@@ -471,25 +472,26 @@ function CourtRotation({
   timeouts: Timeout[];
   onOpenSubstitute?: () => void;
   onLiberoIn?: () => void;
-  onLiberoOut?: () => void;
   onTimeout?: () => void;
   timeoutLoading?: boolean;
   liberoLoading?: boolean;
+  rallyInProgress: boolean;
 }) {
   const teamRotations = rotations?.slice().sort((a, b) => a.position - b.position) ?? [];
   const onCourtPlayerIds = teamRotations.map((r) => r.playerId);
-  const playerAtP4Id = teamRotations.find((r) => r.position === LIBERO_OUT_POSITION)?.playerId;
   const benchLiberos = setLiberoIds
     .map((id) => players.find((p) => p.id === id))
     .filter((p): p is Player => !!p && !onCourtPlayerIds.includes(p.id));
-  const liberoInOptions = getLiberoInOptions(teamRotations, benchLiberos);
-  const liberoOutReady = !!canLiberoOutAtP4(
-    playerAtP4Id,
-    setLiberoIds,
-    players,
-    liberoReplacements
-  );
+  const liberoInOptions = getLiberoInOptions(teamRotations, benchLiberos, setLiberoIds);
   const liberoInCount = liberoReplacements.filter((r) => r.eventType === "in").length;
+  const liberoOnCourt = isLiberoOnCourt(teamRotations, setLiberoIds);
+  const liberoInTitle = rallyInProgress
+    ? "Libero changes allowed between rallies only"
+    : liberoOnCourt && benchLiberos.length === 0
+      ? "Another libero must be on the bench to switch"
+      : liberoOnCourt
+        ? "Switch with the bench libero at P1, P5, or P6"
+        : `Libero in at P${LIBERO_IN_POSITIONS.join(", P")} only`;
   const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
   const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
   const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
@@ -544,30 +546,23 @@ function CourtRotation({
           No Team Captain or Game Captain on court. Substitute to assign a Game Captain.
         </p>
       )}
-      {(onTimeout || onOpenSubstitute || onLiberoIn || onLiberoOut) && (
+      {(onTimeout || onOpenSubstitute || onLiberoIn) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {onLiberoIn && (
             <Button
               variant="secondary"
               type="button"
               onClick={onLiberoIn}
-              disabled={liberoLoading || setLiberoIds.length === 0 || liberoInOptions.length === 0}
+              disabled={
+                rallyInProgress ||
+                liberoLoading ||
+                setLiberoIds.length === 0 ||
+                liberoInOptions.length === 0
+              }
               className="text-xs"
-              title={`Libero in at P${LIBERO_IN_POSITIONS.join(", P")} only`}
+              title={liberoInTitle}
             >
               Libero In ({liberoInCount})
-            </Button>
-          )}
-          {onLiberoOut && (
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={onLiberoOut}
-              disabled={liberoLoading || !liberoOutReady}
-              className="text-xs"
-              title="Libero out at P4 (returns replaced player)"
-            >
-              Libero Out
             </Button>
           )}
           {onTimeout && (
@@ -575,9 +570,17 @@ function CourtRotation({
               variant="secondary"
               type="button"
               onClick={onTimeout}
-              disabled={timeoutLoading || timeouts.length >= MAX_TIMEOUTS_PER_SET}
+              disabled={
+                rallyInProgress ||
+                timeoutLoading ||
+                timeouts.length >= MAX_TIMEOUTS_PER_SET
+              }
               className="text-xs"
-              title={`Timeouts this set (max ${MAX_TIMEOUTS_PER_SET})`}
+              title={
+                rallyInProgress
+                  ? "Timeouts allowed between rallies only"
+                  : `Timeouts this set (max ${MAX_TIMEOUTS_PER_SET})`
+              }
             >
               Timeout ({timeouts.length})
             </Button>
@@ -587,8 +590,13 @@ function CourtRotation({
               variant="secondary"
               type="button"
               onClick={onOpenSubstitute}
+              disabled={rallyInProgress}
               className="text-xs"
-              title="Substitutions this set"
+              title={
+                rallyInProgress
+                  ? "Substitutions allowed between rallies only"
+                  : "Substitutions this set"
+              }
             >
               Substitute ({substitutions.length})
             </Button>
@@ -1150,6 +1158,25 @@ function LiveScoring({
   const summary = getMatchSummary(match);
   const homeScore = summary.currentSet?.homeScore ?? 0;
   const awayScore = summary.currentSet?.awayScore ?? 0;
+  const rallies = match.rallies ?? [];
+  const latestRally = rallies.length > 0 ? rallies[rallies.length - 1] : null;
+  const needsRallyStart = matchNeedsRallyStart(rallies, homeScore, awayScore);
+  const rallyInProgress = isRallyInProgress(rallies, homeScore, awayScore);
+  const nextRallyNumber = rallies.length + 1;
+
+  async function startRally() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${match.id}/start-rally`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to start rally");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function score(team: ServingTeam) {
     const receivingTeam: ServingTeam = match.servingTeam === "home" ? "away" : "home";
@@ -1297,7 +1324,7 @@ function LiveScoring({
     const benchLiberos = setLiberoIds
       .map((id) => players.find((p) => p.id === id))
       .filter((p): p is Player => !!p && !onCourtIds.includes(p.id));
-    const options = getLiberoInOptions(teamRotations, benchLiberos);
+    const options = getLiberoInOptions(teamRotations, benchLiberos, setLiberoIds);
     if (options.length === 0) return;
     setLiberoInModal({ team, teamName, options });
   }
@@ -1499,6 +1526,18 @@ function LiveScoring({
               <p className="text-sm text-slate-500">Sets won: {summary.awaySets}</p>
             </div>
           </div>
+          {needsRallyStart ? (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+              {rallies.length === 0
+                ? "Tap Start Rally when the referee whistles to begin."
+                : "Rally ended. Tap Start Rally after the next whistle."}
+            </p>
+          ) : latestRally ? (
+            <p className="mt-3 text-sm text-slate-600">
+              Rally {rallies.length} in play · started {formatRallyTime(latestRally.createdAt)} at{" "}
+              {latestRally.homeScore}–{latestRally.awayScore}
+            </p>
+          ) : null}
         </div>
       </Card>
 
@@ -1506,22 +1545,41 @@ function LiveScoring({
         <Button
           variant="score-home"
           className="w-full"
-          disabled={loading}
+          disabled={loading || needsRallyStart}
           onClick={() => score("home")}
+          title={needsRallyStart ? "Start a rally before scoring" : undefined}
         >
           +1 {match.homeTeam?.name}
         </Button>
         <Button
           variant="score-away"
           className="w-full"
-          disabled={loading}
+          disabled={loading || needsRallyStart}
           onClick={() => score("away")}
+          title={needsRallyStart ? "Start a rally before scoring" : undefined}
         >
           +1 {match.awayTeam?.name}
         </Button>
       </div>
 
       <div className="flex flex-wrap gap-3">
+        <Button
+          variant={needsRallyStart ? "primary" : "secondary"}
+          disabled={loading || !needsRallyStart}
+          onClick={startRally}
+          title={
+            needsRallyStart
+              ? "Mark rally start after referee whistle"
+              : "Rally in play — score a point to end it"
+          }
+          className={
+            needsRallyStart
+              ? "animate-pulse ring-2 ring-amber-300 ring-offset-2 shadow-md"
+              : ""
+          }
+        >
+          Start Rally ({nextRallyNumber})
+        </Button>
         <Button variant="secondary" disabled={loading} onClick={addNextSet}>
           End Set
         </Button>
@@ -1529,6 +1587,27 @@ function LiveScoring({
           End Match
         </Button>
       </div>
+
+      {rallies.length > 0 && (
+        <Card>
+          <h3 className="text-sm font-medium text-slate-700">Rally Log — Set {match.currentSet}</h3>
+          <p className="mt-1 text-xs text-slate-500">Whistle times for the current set.</p>
+          <div className="mt-3 max-h-40 space-y-1 overflow-y-auto">
+            {[...rallies].reverse().map((rally, index) => (
+              <div
+                key={rally.id}
+                className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700"
+              >
+                <span className="font-medium">Rally {rallies.length - index}</span>
+                <span className="text-slate-500">{formatRallyTime(rally.createdAt)}</span>
+                <span className="tabular-nums text-slate-600">
+                  {rally.homeScore}–{rally.awayScore}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {courtTeams.map(({ team, teamId, teamName, color, side, serving }) => {
@@ -1571,10 +1650,10 @@ function LiveScoring({
               substitutions={teamSubstitutions}
               liberoReplacements={teamLiberoReplacements}
               timeouts={teamTimeouts}
+              rallyInProgress={rallyInProgress}
               liberoLoading={liberoLoadingTeam === team}
               timeoutLoading={timeoutLoadingTeam === team}
               onLiberoIn={() => openLiberoIn(team, teamId, teamName, players, setLiberoIds)}
-              onLiberoOut={() => openLiberoOutPrompt(match, team)}
               onTimeout={() => callTeamTimeout(team, teamName)}
               onOpenSubstitute={() =>
                 openSubstitution(

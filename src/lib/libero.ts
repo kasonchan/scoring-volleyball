@@ -44,18 +44,50 @@ export interface LiberoInOption {
 
 export function getLiberoInOptions(
   rotations: { position: number; player?: Player }[],
-  benchLiberos: Player[]
+  benchLiberos: Player[],
+  setLiberoIds: string[]
 ): LiberoInOption[] {
-  const options: LiberoInOption[] = [];
+  if (benchLiberos.length === 0) return [];
+
+  const liberoOnBackRow: LiberoInOption[] = [];
+  const regularPlayerOptions: LiberoInOption[] = [];
+
   for (const entry of rotations) {
     if (!isLiberoInPosition(entry.position)) continue;
     const player = entry.player;
     if (!player) continue;
-    if (benchLiberos.length > 0) {
-      options.push({ position: entry.position, player, eligibleLiberos: benchLiberos });
+
+    if (isLiberoPlayer(player, setLiberoIds)) {
+      liberoOnBackRow.push({
+        position: entry.position,
+        player,
+        eligibleLiberos: benchLiberos,
+      });
+    } else {
+      regularPlayerOptions.push({
+        position: entry.position,
+        player,
+        eligibleLiberos: benchLiberos,
+      });
     }
   }
-  return options.sort((a, b) => a.position - b.position);
+
+  const liberoOnCourt = rotations.some(
+    (r) => r.player && isLiberoPlayer(r.player, setLiberoIds)
+  );
+
+  if (liberoOnCourt) {
+    return liberoOnBackRow.sort((a, b) => a.position - b.position);
+  }
+
+  return regularPlayerOptions.sort((a, b) => a.position - b.position);
+}
+
+export function isLiberoOnCourt(
+  rotations: { position: number; player?: Player }[],
+  setLiberoIds: string[]
+): boolean {
+  return rotations.some((r) => r.player && isLiberoPlayer(r.player, setLiberoIds));
 }
 
 export function canLiberoOutAtP4(
