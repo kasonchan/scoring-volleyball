@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { HAIKYU_NAMESPACE_SLUG } from "./constants";
+import { generateUniqueHandle } from "./handle";
 
 const DEFAULT_NAMESPACE_SLUG = HAIKYU_NAMESPACE_SLUG;
 const DEFAULT_NAMESPACE_NAME = "Haikyu";
@@ -10,9 +11,29 @@ const DEFAULT_NAMESPACE_DESCRIPTION =
   "Default volleyball league and tournament scoring.";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "volleyball.db");
 
+let dbPathOverride: string | null = null;
 let db: Database.Database | null = null;
+
+function resolveDbPath(): string {
+  return dbPathOverride ?? path.join(DATA_DIR, "volleyball.db");
+}
+
+/** Point getDb() at a file (tests). Pass null to restore default. */
+export function setDbPathForTests(dbPath: string | null): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
+  dbPathOverride = dbPath;
+}
+
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
 
 function initSchema(database: Database.Database) {
   database.exec(`
@@ -336,14 +357,146 @@ function migrateSchema(database: Database.Database) {
     .prepare("UPDATE locations SET namespace_id = ? WHERE namespace_id IS NULL")
     .run(namespaceId);
   database.prepare("UPDATE matches SET namespace_id = ? WHERE namespace_id IS NULL").run(namespaceId);
+
+  migrateUsersTable(database);
+  migrateLoginTokensTable(database);
+}
+
+function migrateLoginTokensTable(database: Database.Database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS login_tokens (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL COLLATE NOCASE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_tokens_user ON login_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_login_tokens_email ON login_tokens(email);
+  `);
+}
+
+function migrateUsersTable(database: Database.Database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      email TEXT NOT NULL COLLATE NOCASE,
+      handle TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  const userColumns = database.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (userColumns.length === 0) return;
+
+  const columnNames = new Set(userColumns.map((c) => c.name));
+  if (!columnNames.has("first_name")) {
+    database.exec("ALTER TABLE users ADD COLUMN first_name TEXT");
+  }
+  if (!columnNames.has("last_name")) {
+    database.exec("ALTER TABLE users ADD COLUMN last_name TEXT");
+  }
+  if (!columnNames.has("handle")) {
+    database.exec("ALTER TABLE users ADD COLUMN handle TEXT");
+  }
+
+  const hasLegacyName = columnNames.has("name");
+  const selectSql = hasLegacyName
+    ? "SELECT id, email, name, first_name, last_name, handle FROM users"
+    : "SELECT id, email, first_name, last_name, handle FROM users";
+
+  const rows = database.prepare(selectSql).all() as Array<{
+    id: string;
+    email: string;
+    name?: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    handle: string | null;
+  }>;
+
+  for (const row of rows) {
+    let firstName = row.first_name?.trim() ?? "";
+    let lastName = row.last_name?.trim() ?? "";
+    if ((!firstName || !lastName) && row.name) {
+      const parts = String(row.name).trim().split(/\s+/);
+      firstName = firstName || parts[0] || "User";
+      lastName = lastName || parts.slice(1).join(" ") || "User";
+    }
+    if (!firstName) firstName = "User";
+    if (!lastName) lastName = "User";
+
+    const needsNames = !row.first_name?.trim() || !row.last_name?.trim();
+    const needsHandle = !row.handle?.trim();
+
+    const displayName = `${firstName} ${lastName}`.trim();
+
+    if (needsHandle) {
+      const handle = generateUniqueHandle(firstName, lastName);
+      if (needsNames) {
+        if (hasLegacyName) {
+          database
+            .prepare(
+              "UPDATE users SET first_name = ?, last_name = ?, handle = ?, name = ? WHERE id = ?"
+            )
+            .run(firstName, lastName, handle, displayName, row.id);
+        } else {
+          database
+            .prepare("UPDATE users SET first_name = ?, last_name = ?, handle = ? WHERE id = ?")
+            .run(firstName, lastName, handle, row.id);
+        }
+      } else {
+        database.prepare("UPDATE users SET handle = ? WHERE id = ?").run(handle, row.id);
+        if (hasLegacyName) {
+          database.prepare("UPDATE users SET name = ? WHERE id = ?").run(displayName, row.id);
+        }
+      }
+    } else if (needsNames) {
+      if (hasLegacyName) {
+        database
+          .prepare("UPDATE users SET first_name = ?, last_name = ?, name = ? WHERE id = ?")
+          .run(firstName, lastName, displayName, row.id);
+      } else {
+        database
+          .prepare("UPDATE users SET first_name = ?, last_name = ? WHERE id = ?")
+          .run(firstName, lastName, row.id);
+      }
+    } else if (hasLegacyName && row.name !== displayName) {
+      database.prepare("UPDATE users SET name = ? WHERE id = ?").run(displayName, row.id);
+    }
+  }
+
+  if (hasLegacyName) {
+    database.exec(`
+      UPDATE users
+      SET name = trim(COALESCE(first_name, '') || ' ' || COALESCE(last_name, ''))
+      WHERE name IS NULL OR trim(name) = ''
+    `);
+  }
+
+  database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+  database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle)`);
+}
+
+export function usersTableHasColumn(column: string): boolean {
+  const database = getDb();
+  const columns = database.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  return columns.some((c) => c.name === column);
 }
 
 export function getDb(): Database.Database {
   if (!db) {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const dbPath = resolveDbPath();
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    db = new Database(DB_PATH);
+    db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
     initSchema(db);

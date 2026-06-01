@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthNav } from "@/components/AuthNav";
 import { namespaceAppPath } from "@/lib/namespace-paths";
 
 interface NavProps {
@@ -29,41 +30,44 @@ export function Nav({ namespaceSlug, namespaceName }: NavProps = {}) {
             ) : null}
           </span>
         </Link>
-        {inNamespace ? (
-          <nav className="flex items-center gap-1">
+        <div className="flex items-center gap-1">
+          {inNamespace ? (
+            <nav className="flex items-center gap-1">
+              <Link
+                href={adminHref}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                Admin
+              </Link>
+              <Link
+                href={scorerHref}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                Scorer
+              </Link>
+              <Link
+                href={refereeHref}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                Referee
+              </Link>
+              <Link
+                href={spectatorHref}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              >
+                Spectator
+              </Link>
+            </nav>
+          ) : (
             <Link
-              href={adminHref}
+              href="/"
               className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             >
-              Admin
+              Home
             </Link>
-            <Link
-              href={scorerHref}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              Scorer
-            </Link>
-            <Link
-              href={refereeHref}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              Referee
-            </Link>
-            <Link
-              href={spectatorHref}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              Spectator
-            </Link>
-          </nav>
-        ) : (
-          <Link
-            href="/"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-          >
-            Home
-          </Link>
-        )}
+          )}
+          <AuthNav />
+        </div>
       </div>
     </header>
   );
