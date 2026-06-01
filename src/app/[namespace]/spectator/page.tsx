@@ -35,12 +35,12 @@ function sortMatches(matches: Match[]): Match[] {
 }
 
 export default function SpectatorPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(api("/matches"))
+    apiFetch(api("/matches"))
       .then((r) => r.json())
       .then((data: Match[]) => setMatches(sortMatches(data)))
       .finally(() => setLoading(false));

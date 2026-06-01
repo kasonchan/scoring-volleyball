@@ -13,7 +13,7 @@ import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { Location, Match, Team, formatMatchDateTime } from "@/lib/types";
 
 export default function MatchesPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [teams, setTeams] = useState<Team[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -24,9 +24,9 @@ export default function MatchesPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(api("/teams")).then((r) => r.json()),
-      fetch(api("/locations")).then((r) => r.json()),
-      fetch(api("/matches")).then((r) => r.json()),
+      apiFetch(api("/teams")).then((r) => r.json()),
+      apiFetch(api("/locations")).then((r) => r.json()),
+      apiFetch(api("/matches")).then((r) => r.json()),
     ])
       .then(([t, l, m]) => {
         setTeams(t);
@@ -41,7 +41,7 @@ export default function MatchesPage() {
     setError("");
     setCreating(true);
     try {
-      const res = await fetch(api("/matches"), {
+      const res = await apiFetch(api("/matches"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(matchFormValuesToPayload(formValues)),
@@ -60,7 +60,7 @@ export default function MatchesPage() {
   async function handleDelete(match: Match) {
     const label = `${match.homeTeam?.name ?? "Home"} vs ${match.awayTeam?.name ?? "Away"}`;
     if (!confirm(`Delete match "${label}"? This cannot be undone.`)) return;
-    const res = await fetch(api(`/matches/${match.id}`), { method: "DELETE" });
+    const res = await apiFetch(api(`/matches/${match.id}`), { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json();
       alert(data.error ?? "Failed to delete match");

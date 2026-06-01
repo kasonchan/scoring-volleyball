@@ -52,7 +52,7 @@ function CompactModeToggle({
 }
 
 export default function SpectatorMatchPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const params = useParams();
   const matchId = params.id as string;
   const [match, setMatch] = useState<Match | null>(null);
@@ -84,7 +84,7 @@ export default function SpectatorMatchPage() {
   }, []);
 
   const loadMatch = useCallback(() => {
-    fetch(api(`/matches/${matchId}`))
+    apiFetch(api(`/matches/${matchId}`))
       .then((r) => {
         if (!r.ok) throw new Error("Match not found");
         return r.json();
@@ -101,7 +101,7 @@ export default function SpectatorMatchPage() {
   useEffect(() => {
     if (!match || match.status !== "in_progress") return;
     const id = setInterval(() => {
-      fetch(api(`/matches/${matchId}`))
+      apiFetch(api(`/matches/${matchId}`))
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (data) applyMatch(data);

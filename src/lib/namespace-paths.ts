@@ -5,7 +5,8 @@ export function namespaceAppPath(namespaceSlug: string, path = ""): string {
   return `/${namespaceSlug}${suffix}`;
 }
 
-export function namespaceApiPath(namespaceSlug: string, path = ""): string {
+/** API path without namespace segment (namespace is sent via X-Namespace-Slug header). */
+export function apiPath(path = ""): string {
   const suffix = path.startsWith("/") ? path : path ? `/${path}` : "";
-  return `/api/${namespaceSlug}${suffix}`;
+  return `/api${suffix}`;
 }

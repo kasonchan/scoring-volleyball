@@ -8,12 +8,12 @@ import { Button, Card, PageHeader } from "@/components/ui";
 import { Location } from "@/lib/types";
 
 export default function LocationsPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(api("/locations"))
+    apiFetch(api("/locations"))
       .then((r) => r.json())
       .then(setLocations)
       .finally(() => setLoading(false));
@@ -21,7 +21,7 @@ export default function LocationsPage() {
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Delete location "${name}"? This cannot be undone.`)) return;
-    await fetch(api(`/locations/${id}`), { method: "DELETE" });
+    await apiFetch(api(`/locations/${id}`), { method: "DELETE" });
     setLocations((prev) => prev.filter((l) => l.id !== id));
   }
 
@@ -58,7 +58,7 @@ export default function LocationsPage() {
                     <p className="mt-1 text-sm text-slate-600 whitespace-pre-line">{location.address}</p>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <Link href={`/admin/locations/${location.id}/edit`}>
+                    <Link href={app(`/admin/locations/${location.id}/edit`)}>
                       <Button variant="secondary">Edit</Button>
                     </Link>
                     <Button variant="danger" onClick={() => handleDelete(location.id, location.name)}>

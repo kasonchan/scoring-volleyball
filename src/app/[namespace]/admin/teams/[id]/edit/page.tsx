@@ -15,7 +15,7 @@ import { Button, Card, PageHeader } from "@/components/ui";
 import { Player } from "@/lib/types";
 
 export default function EditTeamPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const params = useParams();
   const teamId = params.id as string;
   const [teamName, setTeamName] = useState("");
@@ -25,7 +25,7 @@ export default function EditTeamPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(api(`/teams/${teamId}`))
+    apiFetch(api(`/teams/${teamId}`))
       .then((r) => {
         if (!r.ok) throw new Error("Team not found");
         return r.json();
@@ -67,14 +67,14 @@ export default function EditTeamPage() {
     }
 
     try {
-      const res = await fetch(api(`/teams/${teamId}`), {
+      const res = await apiFetch(api(`/teams/${teamId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: teamName, players: validPlayers }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      window.location.href = "/admin/teams";
+      window.location.href = app("/admin/teams");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update team");
     } finally {

@@ -35,12 +35,12 @@ function sortMatchesForReferee(matches: Match[]): Match[] {
 }
 
 export default function RefereePage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(api("/matches"))
+    apiFetch(api("/matches"))
       .then((r) => r.json())
       .then((data: Match[]) => setMatches(sortMatchesForReferee(data)))
       .finally(() => setLoading(false));

@@ -8,12 +8,12 @@ import { Badge, Card, PageHeader } from "@/components/ui";
 import { Match, formatMatchDateTime, getMatchSummary } from "@/lib/types";
 
 export default function ScorerPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(api("/matches"))
+    apiFetch(api("/matches"))
       .then((r) => r.json())
       .then(setMatches)
       .finally(() => setLoading(false));

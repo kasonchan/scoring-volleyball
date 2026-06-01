@@ -9,7 +9,7 @@ import { NamespaceNav } from "@/components/NamespaceNav";
 import { Location, LocationInput } from "@/lib/types";
 
 export default function EditLocationPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const params = useParams();
   const locationId = params.id as string;
   const [initial, setInitial] = useState<LocationInput | null>(null);
@@ -17,7 +17,7 @@ export default function EditLocationPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(api(`/locations/${locationId}`))
+    apiFetch(api(`/locations/${locationId}`))
       .then((r) => {
         if (!r.ok) throw new Error("Location not found");
         return r.json();
@@ -33,14 +33,14 @@ export default function EditLocationPage() {
   }, [locationId]);
 
   async function handleSubmit(location: LocationInput) {
-    const res = await fetch(api(`/locations/${locationId}`), {
+    const res = await apiFetch(api(`/locations/${locationId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(location),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    window.location.href = "/admin/locations";
+    window.location.href = app("/admin/locations");
   }
 
   if (loading) {
@@ -74,7 +74,7 @@ export default function EditLocationPage() {
       description="Update the location name and address."
       initialValue={initial}
       submitLabel="Save Changes"
-      cancelHref="/admin/locations"
+      cancelHref={app("/admin/locations")}
       onSubmit={handleSubmit}
     />
   );

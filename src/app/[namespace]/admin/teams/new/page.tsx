@@ -13,7 +13,7 @@ import {
 import { Button, Card, PageHeader } from "@/components/ui";
 
 export default function NewTeamPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [teamName, setTeamName] = useState("");
   const [players, setPlayers] = useState<PlayerRow[]>(Array.from({ length: 6 }, emptyPlayerRow));
   const [error, setError] = useState("");
@@ -39,14 +39,14 @@ export default function NewTeamPage() {
     }
 
     try {
-      const res = await fetch(api("/teams"), {
+      const res = await apiFetch(api("/teams"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: teamName, players: validPlayers }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      window.location.href = "/admin/teams";
+      window.location.href = app("/admin/teams");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create team");
     } finally {

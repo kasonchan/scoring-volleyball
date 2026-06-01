@@ -8,12 +8,12 @@ import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { Team, PLAYER_ROLE_LABELS } from "@/lib/types";
 
 export default function TeamsPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(api("/teams"))
+    apiFetch(api("/teams"))
       .then((r) => r.json())
       .then(setTeams)
       .finally(() => setLoading(false));
@@ -21,7 +21,7 @@ export default function TeamsPage() {
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Delete team "${name}"? This cannot be undone.`)) return;
-    await fetch(api(`/teams/${id}`), { method: "DELETE" });
+    await apiFetch(api(`/teams/${id}`), { method: "DELETE" });
     setTeams((prev) => prev.filter((t) => t.id !== id));
   }
 

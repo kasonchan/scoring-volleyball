@@ -100,7 +100,7 @@ function RotationSetup({
   courtSwapped: boolean;
   onSwitchCourt: () => void;
 }) {
-  const { api } = useNamespacePaths();
+  const { api, apiFetch } = useNamespacePaths();
   const [homeRotation, setHomeRotation] = useState<(string | null)[]>(Array(6).fill(null));
   const [awayRotation, setAwayRotation] = useState<(string | null)[]>(Array(6).fill(null));
   const [homeGameCaptain, setHomeGameCaptain] = useState<string | null>(null);
@@ -166,7 +166,7 @@ function RotationSetup({
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(api(`/matches/${match.id}/rotation`), {
+      const res = await apiFetch(api(`/matches/${match.id}/rotation`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -879,7 +879,7 @@ function LiveScoring({
   onSwitchCourt: () => void;
   compactMode: boolean;
 }) {
-  const { api } = useNamespacePaths();
+  const { api, apiFetch } = useNamespacePaths();
   const [loading, setLoading] = useState(false);
   const [liberoLoadingTeam, setLiberoLoadingTeam] = useState<ServingTeam | null>(null);
   const [timeoutLoadingTeam, setTimeoutLoadingTeam] = useState<ServingTeam | null>(null);
@@ -923,7 +923,7 @@ function LiveScoring({
   async function startRally() {
     setLoading(true);
     try {
-      const res = await fetch(api(`/matches/${match.id}/start-rally`), { method: "POST" });
+      const res = await apiFetch(api(`/matches/${match.id}/start-rally`), { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       onUpdate(data);
@@ -940,7 +940,7 @@ function LiveScoring({
 
     setLoading(true);
     try {
-      const res = await fetch(api(`/matches/${match.id}/score`), {
+      const res = await apiFetch(api(`/matches/${match.id}/score`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ team }),
@@ -962,7 +962,7 @@ function LiveScoring({
     if (!confirm(`End Set ${match.currentSet} and start Set ${match.currentSet + 1}?`)) return;
     setLoading(true);
     try {
-      const res = await fetch(api(`/matches/${match.id}/next-set`), { method: "POST" });
+      const res = await apiFetch(api(`/matches/${match.id}/next-set`), { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       onUpdate(data);
@@ -977,7 +977,7 @@ function LiveScoring({
     if (!confirm("End this match?")) return;
     setLoading(true);
     try {
-      const res = await fetch(api(`/matches/${match.id}/end`), { method: "POST" });
+      const res = await apiFetch(api(`/matches/${match.id}/end`), { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       onUpdate(data);
@@ -996,7 +996,7 @@ function LiveScoring({
     if (!subModal) return;
     setLoading(true);
     try {
-      const res = await fetch(api(`/matches/${match.id}/substitute`), {
+      const res = await apiFetch(api(`/matches/${match.id}/substitute`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1052,7 +1052,7 @@ function LiveScoring({
   async function callTeamTimeout(team: ServingTeam, teamName: string) {
     setTimeoutLoadingTeam(team);
     try {
-      const res = await fetch(api(`/matches/${match.id}/timeout`), {
+      const res = await apiFetch(api(`/matches/${match.id}/timeout`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ team }),
@@ -1133,7 +1133,7 @@ function LiveScoring({
   async function confirmLiberoIn(team: ServingTeam, position: number, playerInId: string) {
     setLiberoLoadingTeam(team);
     try {
-      const res = await fetch(api(`/matches/${match.id}/libero-in`), {
+      const res = await apiFetch(api(`/matches/${match.id}/libero-in`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ team, playerInId, position }),
@@ -1154,7 +1154,7 @@ function LiveScoring({
     const team = liberoOutModal.team;
     setLiberoLoadingTeam(team);
     try {
-      const res = await fetch(api(`/matches/${match.id}/libero-out`), {
+      const res = await apiFetch(api(`/matches/${match.id}/libero-out`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ team }),
@@ -1523,7 +1523,7 @@ function LiveScoring({
 }
 
 export default function MatchScorerPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const params = useParams();
   const matchId = params.id as string;
   const [match, setMatch] = useState<Match | null>(null);
@@ -1557,7 +1557,7 @@ export default function MatchScorerPage() {
   const handleSwitchCourt = useCallback(async () => {
     const next = !courtSwapped;
     try {
-      const res = await fetch(api(`/matches/${matchId}/court`), {
+      const res = await apiFetch(api(`/matches/${matchId}/court`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ courtSwapped: next }),
@@ -1571,7 +1571,7 @@ export default function MatchScorerPage() {
   }, [matchId, courtSwapped, applyMatch]);
 
   const loadMatch = useCallback(() => {
-    fetch(api(`/matches/${matchId}`))
+    apiFetch(api(`/matches/${matchId}`))
       .then((r) => {
         if (!r.ok) throw new Error("Match not found");
         return r.json();

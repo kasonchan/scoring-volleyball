@@ -14,7 +14,7 @@ import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { Location, Match, Team, formatMatchDateTime } from "@/lib/types";
 
 export default function EditMatchPage() {
-  const { api, app } = useNamespacePaths();
+  const { api, app, apiFetch } = useNamespacePaths();
   const params = useParams();
   const matchId = params.id as string;
   const [teams, setTeams] = useState<Team[]>([]);
@@ -32,9 +32,9 @@ export default function EditMatchPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(api("/teams")).then((r) => r.json()),
-      fetch(api("/locations")).then((r) => r.json()),
-      fetch(api(`/matches/${matchId}`)).then((r) => {
+      apiFetch(api("/teams")).then((r) => r.json()),
+      apiFetch(api("/locations")).then((r) => r.json()),
+      apiFetch(api(`/matches/${matchId}`)).then((r) => {
         if (!r.ok) throw new Error("Match not found");
         return r.json();
       }),
@@ -54,14 +54,14 @@ export default function EditMatchPage() {
     setError("");
     setSaving(true);
     try {
-      const res = await fetch(api(`/matches/${matchId}`), {
+      const res = await apiFetch(api(`/matches/${matchId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(matchFormValuesToPayload(formValues)),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      window.location.href = "/admin/matches";
+      window.location.href = app("/admin/matches");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update match");
     } finally {

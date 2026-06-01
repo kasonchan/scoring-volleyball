@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Nav } from "@/components/Nav";
+import { NamespaceNav } from "@/components/NamespaceNav";
 import { Button, Card, PageHeader } from "@/components/ui";
 import { LocationInput } from "@/lib/types";
 
@@ -47,7 +47,7 @@ export function LocationForm({
 
   return (
     <>
-      <Nav />
+      <NamespaceNav />
       <main className="mx-auto max-w-2xl flex-1 px-4 py-8">
         <PageHeader title={title} description={description} />
 
