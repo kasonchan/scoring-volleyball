@@ -8,7 +8,6 @@ import { CurrentTimeClock } from "@/components/CurrentTimeClock";
 import { CompletedSetsSummary } from "@/components/scoring/completed-sets-summary";
 import { CourtPanel } from "@/components/scoring/court-panel";
 import { MatchScoreboard, getRallyState } from "@/components/scoring/match-scoreboard";
-import { SetHistoryCard } from "@/components/scoring/set-history-card";
 import { Badge, Card } from "@/components/ui";
 import {
   CourtTeamConfig,
@@ -127,6 +126,7 @@ function RefereeFitScreenView({
   const courtTeams = getCourtTeams(match, courtSwapped);
   const leftCourtTeam = courtTeams[0];
   const rightCourtTeam = courtTeams[1];
+  const leftIsHome = leftCourtTeam.team === "home";
   const { summary } = getRallyState(match);
   const currentSetRow = summary.currentSet;
 
@@ -153,7 +153,13 @@ function RefereeFitScreenView({
         <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-center">
           <CurrentTimeClock className="mx-auto w-fit text-[9px]" />
         </div>
-        <MatchScoreboard match={match} fitScreen />
+        <MatchScoreboard
+          match={match}
+          fitScreen
+          leftTeamName={leftCourtTeam.teamName}
+          rightTeamName={rightCourtTeam.teamName}
+          leftIsHome={leftIsHome}
+        />
       </div>
 
       <div className="min-h-0">
@@ -184,6 +190,7 @@ function RefereeLiveView({
   const courtTeams = getCourtTeams(match, courtSwapped);
   const leftCourtTeam = courtTeams[0];
   const rightCourtTeam = courtTeams[1];
+  const leftIsHome = leftCourtTeam.team === "home";
   const { summary } = getRallyState(match);
   const currentSetRow = summary.currentSet;
 
@@ -211,26 +218,12 @@ function RefereeLiveView({
           <CurrentTimeClock className="mx-auto w-fit text-xs" />
           <CompletedSetsSummary match={match} compact />
         </div>
-        <MatchScoreboard match={match} ultraCompact />
-        <SetHistoryCard
-          setNumber={match.currentSet}
-          leftTeamId={leftCourtTeam.teamId}
-          rightTeamId={rightCourtTeam.teamId}
+        <MatchScoreboard
+          match={match}
+          ultraCompact
           leftTeamName={leftCourtTeam.teamName}
           rightTeamName={rightCourtTeam.teamName}
-          homeTeamId={match.homeTeamId}
-          homeTeamName={match.homeTeam?.name ?? "Home"}
-          awayTeamName={match.awayTeam?.name ?? "Away"}
-          rallies={match.rallies ?? []}
-          scoreEvents={match.scoreEvents ?? []}
-          substitutions={
-            match.substitutions?.filter((s) => s.setNumber === match.currentSet) ?? []
-          }
-          timeouts={match.timeouts?.filter((t) => t.setNumber === match.currentSet) ?? []}
-          liberoReplacements={
-            match.liberoReplacements?.filter((r) => r.setNumber === match.currentSet) ?? []
-          }
-          compact
+          leftIsHome={leftIsHome}
         />
       </div>
 
@@ -250,7 +243,8 @@ export default function RefereeMatchPage() {
   const params = useParams();
   const matchId = params.id as string;
   const [match, setMatch] = useState<Match | null>(null);
-  const [courtSwapped, setCourtSwapped] = useState(false);
+  const [viewCourtSwapped, setViewCourtSwapped] = useState(false);
+  const [hasManualCourtSwap, setHasManualCourtSwap] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [fitScreen, setFitScreen] = useState(false);
@@ -272,10 +266,16 @@ export default function RefereeMatchPage() {
     }
   }, []);
 
-  const applyMatch = useCallback((m: Match) => {
-    setMatch(m);
-    setCourtSwapped(getCourtSwappedForMatch(m));
-  }, []);
+  const applyMatch = useCallback(
+    (m: Match) => {
+      setMatch(m);
+      const swapped = getCourtSwappedForMatch(m);
+      if (!hasManualCourtSwap) {
+        setViewCourtSwapped(swapped);
+      }
+    },
+    [hasManualCourtSwap]
+  );
 
   const loadMatch = useCallback(() => {
     fetch(`/api/matches/${matchId}`)
@@ -384,6 +384,18 @@ export default function RefereeMatchPage() {
             </div>
             <div className="flex shrink-0 flex-col items-end gap-0.5">
               {isLive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasManualCourtSwap(true);
+                    setViewCourtSwapped((prev) => !prev);
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600 transition-colors hover:bg-slate-50 sm:text-xs"
+                >
+                  Switch Team
+                </button>
+              )}
+              {isLive && (
                 <>
                   <FitScreenToggle enabled={fitScreen} onChange={setFitScreenPersisted} />
                   <span className="animate-pulse">
@@ -426,7 +438,11 @@ export default function RefereeMatchPage() {
               </p>
             </Card>
           ) : (
-            <RefereeLiveView match={match} courtSwapped={courtSwapped} fitScreen={fitScreen} />
+            <RefereeLiveView
+              match={match}
+              courtSwapped={viewCourtSwapped}
+              fitScreen={fitScreen}
+            />
           )}
         </div>
       </main>
