@@ -68,6 +68,7 @@ function validatePlayerRoles(players: { role?: PlayerRole | null }[]) {
 function rowToTeam(row: Record<string, unknown>, players: Player[] = []): Team {
   return {
     id: row.id as string,
+    namespaceId: row.namespace_id as string,
     name: row.name as string,
     createdAt: row.created_at as string,
     players,
@@ -248,9 +249,11 @@ function rowToRotation(row: Record<string, unknown>, player?: Player): RotationE
   };
 }
 
-export function getAllTeams(): Team[] {
+export function getAllTeams(namespaceId: string): Team[] {
   const db = getDb();
-  const teams = db.prepare("SELECT * FROM teams ORDER BY name").all() as Record<string, unknown>[];
+  const teams = db
+    .prepare("SELECT * FROM teams WHERE namespace_id = ? ORDER BY name")
+    .all(namespaceId) as Record<string, unknown>[];
   const players = db.prepare("SELECT * FROM players ORDER BY jersey_number").all() as Record<string, unknown>[];
   const playersByTeam = new Map<string, Player[]>();
   for (const row of players) {
@@ -262,9 +265,13 @@ export function getAllTeams(): Team[] {
   return teams.map((t) => rowToTeam(t, playersByTeam.get(t.id as string) ?? []));
 }
 
-export function getTeam(id: string): Team | null {
+export function getTeam(id: string, namespaceId?: string): Team | null {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM teams WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const row = namespaceId
+    ? (db
+        .prepare("SELECT * FROM teams WHERE id = ? AND namespace_id = ?")
+        .get(id, namespaceId) as Record<string, unknown> | undefined)
+    : (db.prepare("SELECT * FROM teams WHERE id = ?").get(id) as Record<string, unknown> | undefined);
   if (!row) return null;
   const players = db
     .prepare("SELECT * FROM players WHERE team_id = ? ORDER BY jersey_number")
@@ -272,11 +279,15 @@ export function getTeam(id: string): Team | null {
   return rowToTeam(row, players.map(rowToPlayer));
 }
 
-export function createTeam(input: CreateTeamInput): Team {
+export function createTeam(namespaceId: string, input: CreateTeamInput): Team {
   const db = getDb();
   validatePlayerRoles(input.players);
   const id = uuidv4();
-  db.prepare("INSERT INTO teams (id, name) VALUES (?, ?)").run(id, input.name.trim());
+  db.prepare("INSERT INTO teams (id, namespace_id, name) VALUES (?, ?, ?)").run(
+    id,
+    namespaceId,
+    input.name.trim()
+  );
   const insertPlayer = db.prepare(
     "INSERT INTO players (id, team_id, name, jersey_number, role) VALUES (?, ?, ?, ?, ?)"
   );
@@ -345,23 +356,36 @@ export function deleteTeam(id: string): boolean {
   return result.changes > 0;
 }
 
-export function getAllMatches(): Match[] {
+export function getAllMatches(namespaceId: string): Match[] {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM matches ORDER BY created_at DESC").all() as Record<string, unknown>[];
+  const rows = db
+    .prepare("SELECT * FROM matches WHERE namespace_id = ? ORDER BY created_at DESC")
+    .all(namespaceId) as Record<string, unknown>[];
   return rows.map((row) => enrichMatch(row));
 }
 
-export function getMatch(id: string): Match | null {
+export function getMatch(id: string, namespaceId?: string): Match | null {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM matches WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const row = namespaceId
+    ? (db
+        .prepare("SELECT * FROM matches WHERE id = ? AND namespace_id = ?")
+        .get(id, namespaceId) as Record<string, unknown> | undefined)
+    : (db.prepare("SELECT * FROM matches WHERE id = ?").get(id) as Record<string, unknown> | undefined);
   if (!row) return null;
   return enrichMatch(row);
+}
+
+export function assertMatchInNamespace(matchId: string, namespaceId: string): Match {
+  const match = getMatch(matchId, namespaceId);
+  if (!match) throw new Error("Match not found");
+  return match;
 }
 
 function enrichMatch(row: Record<string, unknown>): Match {
   const locationId = (row.location_id as string | null) ?? null;
   const match: Match = {
     id: row.id as string,
+    namespaceId: row.namespace_id as string,
     homeTeamId: row.home_team_id as string,
     awayTeamId: row.away_team_id as string,
     locationId,
@@ -384,15 +408,15 @@ function enrichMatch(row: Record<string, unknown>): Match {
   return match;
 }
 
-function validateMatchInput(input: CreateMatchInput | UpdateMatchInput) {
+function validateMatchInput(namespaceId: string, input: CreateMatchInput | UpdateMatchInput) {
   if (input.homeTeamId === input.awayTeamId) {
     throw new Error("Home and away teams must be different");
   }
-  if (!getTeam(input.homeTeamId) || !getTeam(input.awayTeamId)) {
-    throw new Error("Both teams must exist");
+  if (!getTeam(input.homeTeamId, namespaceId) || !getTeam(input.awayTeamId, namespaceId)) {
+    throw new Error("Both teams must exist in this namespace");
   }
   const locationId = input.locationId || null;
-  if (locationId && !getLocation(locationId)) {
+  if (locationId && !getLocation(locationId, namespaceId)) {
     throw new Error("Location not found");
   }
 }
@@ -622,26 +646,26 @@ function getMatchLiberoReplacements(matchId: string, setNumber: number): LiberoR
   });
 }
 
-export function createMatch(input: CreateMatchInput): Match {
+export function createMatch(namespaceId: string, input: CreateMatchInput): Match {
   const db = getDb();
-  validateMatchInput(input);
+  validateMatchInput(namespaceId, input);
   const id = uuidv4();
   const locationId = input.locationId || null;
   const scheduledAt = input.scheduledAt || null;
   db.prepare(
-    "INSERT INTO matches (id, home_team_id, away_team_id, location_id, scheduled_at, status) VALUES (?, ?, ?, ?, ?, 'scheduled')"
-  ).run(id, input.homeTeamId, input.awayTeamId, locationId, scheduledAt);
+    "INSERT INTO matches (id, namespace_id, home_team_id, away_team_id, location_id, scheduled_at, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')"
+  ).run(id, namespaceId, input.homeTeamId, input.awayTeamId, locationId, scheduledAt);
   return getMatch(id)!;
 }
 
-export function updateMatch(id: string, input: UpdateMatchInput): Match {
+export function updateMatch(namespaceId: string, id: string, input: UpdateMatchInput): Match {
   const db = getDb();
-  const match = getMatch(id);
+  const match = getMatch(id, namespaceId);
   if (!match) throw new Error("Match not found");
   if (match.status !== "scheduled") {
     throw new Error("Only scheduled matches can be edited");
   }
-  validateMatchInput(input);
+  validateMatchInput(namespaceId, input);
   const locationId = input.locationId || null;
   const scheduledAt = input.scheduledAt || null;
 
@@ -1199,6 +1223,7 @@ function rotateTeam(matchId: string, setNumber: number, team: ServingTeam) {
 function rowToLocation(row: Record<string, unknown>): Location {
   return {
     id: row.id as string,
+    namespaceId: row.namespace_id as string,
     name: row.name as string,
     address: row.address as string,
     createdAt: row.created_at as string,
@@ -1210,26 +1235,37 @@ function validateLocationInput(input: LocationInput) {
   if (!input.address?.trim()) throw new Error("Address is required");
 }
 
-export function getAllLocations(): Location[] {
+export function getAllLocations(namespaceId: string): Location[] {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM locations ORDER BY name").all() as Record<string, unknown>[];
+  const rows = db
+    .prepare("SELECT * FROM locations WHERE namespace_id = ? ORDER BY name")
+    .all(namespaceId) as Record<string, unknown>[];
   return rows.map(rowToLocation);
 }
 
-export function getLocation(id: string): Location | null {
+export function getLocation(id: string, namespaceId?: string): Location | null {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM locations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const row = namespaceId
+    ? (db
+        .prepare("SELECT * FROM locations WHERE id = ? AND namespace_id = ?")
+        .get(id, namespaceId) as Record<string, unknown> | undefined)
+    : (db.prepare("SELECT * FROM locations WHERE id = ?").get(id) as
+        | Record<string, unknown>
+        | undefined);
   if (!row) return null;
   return rowToLocation(row);
 }
 
-export function createLocation(input: LocationInput): Location {
+export function createLocation(namespaceId: string, input: LocationInput): Location {
   const db = getDb();
   validateLocationInput(input);
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO locations (id, name, address) VALUES (?, ?, ?)"
-  ).run(id, input.name.trim(), input.address.trim());
+  db.prepare("INSERT INTO locations (id, namespace_id, name, address) VALUES (?, ?, ?, ?)").run(
+    id,
+    namespaceId,
+    input.name.trim(),
+    input.address.trim()
+  );
   return getLocation(id)!;
 }
 

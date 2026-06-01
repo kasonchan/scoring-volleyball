@@ -1,6 +1,13 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { v4 as uuidv4 } from "uuid";
+import { HAIKYU_NAMESPACE_SLUG } from "./constants";
+
+const DEFAULT_NAMESPACE_SLUG = HAIKYU_NAMESPACE_SLUG;
+const DEFAULT_NAMESPACE_NAME = "Haikyu";
+const DEFAULT_NAMESPACE_DESCRIPTION =
+  "Default volleyball league and tournament scoring.";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "volleyball.db");
@@ -276,6 +283,59 @@ function migrateSchema(database: Database.Database) {
       FOREIGN KEY (team_id) REFERENCES teams(id)
     )
   `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS namespaces (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  const teamColumns = database.prepare("PRAGMA table_info(teams)").all() as { name: string }[];
+  if (!new Set(teamColumns.map((c) => c.name)).has("namespace_id")) {
+    database.exec("ALTER TABLE teams ADD COLUMN namespace_id TEXT REFERENCES namespaces(id)");
+  }
+  const locationColumns = database
+    .prepare("PRAGMA table_info(locations)")
+    .all() as { name: string }[];
+  if (!new Set(locationColumns.map((c) => c.name)).has("namespace_id")) {
+    database.exec(
+      "ALTER TABLE locations ADD COLUMN namespace_id TEXT REFERENCES namespaces(id)"
+    );
+  }
+  const matchColumns = database.prepare("PRAGMA table_info(matches)").all() as { name: string }[];
+  if (!new Set(matchColumns.map((c) => c.name)).has("namespace_id")) {
+    database.exec(
+      "ALTER TABLE matches ADD COLUMN namespace_id TEXT REFERENCES namespaces(id)"
+    );
+  }
+
+  let namespaceId = (
+    database
+      .prepare("SELECT id FROM namespaces WHERE slug = ?")
+      .get(DEFAULT_NAMESPACE_SLUG) as { id: string } | undefined
+  )?.id;
+
+  if (!namespaceId) {
+    namespaceId = uuidv4();
+    database
+      .prepare("INSERT INTO namespaces (id, slug, name, description) VALUES (?, ?, ?, ?)")
+      .run(
+        namespaceId,
+        DEFAULT_NAMESPACE_SLUG,
+        DEFAULT_NAMESPACE_NAME,
+        DEFAULT_NAMESPACE_DESCRIPTION
+      );
+  }
+
+  database.prepare("UPDATE teams SET namespace_id = ? WHERE namespace_id IS NULL").run(namespaceId);
+  database
+    .prepare("UPDATE locations SET namespace_id = ? WHERE namespace_id IS NULL")
+    .run(namespaceId);
+  database.prepare("UPDATE matches SET namespace_id = ? WHERE namespace_id IS NULL").run(namespaceId);
 }
 
 export function getDb(): Database.Database {

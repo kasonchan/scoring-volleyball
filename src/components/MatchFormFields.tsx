@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useNamespacePaths } from "@/hooks/use-namespace";
 import { Location, Team, fromDatetimeLocalValue, toDatetimeLocalValue } from "@/lib/types";
 
 export interface MatchFormValues {
@@ -23,6 +24,8 @@ const inputClassName =
   "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500";
 
 export function MatchFormFields({ teams, locations, values, onChange }: MatchFormFieldsProps) {
+  const { app } = useNamespacePaths();
+
   function update(field: keyof MatchFormValues, value: string) {
     onChange({ ...values, [field]: value });
   }
@@ -69,7 +72,7 @@ export function MatchFormFields({ teams, locations, values, onChange }: MatchFor
         {locations.length === 0 ? (
           <p className="mt-1 text-sm text-slate-600">
             No locations yet.{" "}
-            <Link href="/admin/locations/new" className="text-orange-600 hover:underline">
+            <Link href={app("/admin/locations/new")} className="text-orange-600 hover:underline">
               Add a location
             </Link>
           </p>

@@ -1,3 +1,11 @@
+export interface Namespace {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+}
+
 export type MatchStatus = "scheduled" | "setup" | "in_progress" | "completed";
 export type SetStatus = "in_progress" | "completed";
 export type ServingTeam = "home" | "away";
@@ -19,6 +27,7 @@ export interface Player {
 
 export interface Team {
   id: string;
+  namespaceId: string;
   name: string;
   createdAt: string;
   players?: Player[];
@@ -114,6 +123,7 @@ export const TIMEOUT_SECONDS = 30;
 
 export interface Match {
   id: string;
+  namespaceId: string;
   homeTeamId: string;
   awayTeamId: string;
   locationId: string | null;
@@ -192,6 +202,7 @@ export interface LiberoOutInput {
 
 export interface Location {
   id: string;
+  namespaceId: string;
   name: string;
   address: string;
   createdAt: string;
