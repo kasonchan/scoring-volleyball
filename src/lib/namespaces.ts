@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { DEFAULT_NAMESPACE_SLUG } from "./constants";
+import { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
 
 export { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
 
@@ -30,6 +30,11 @@ export function getAllNamespaces(): Namespace[] {
     )
     .all(DEFAULT_NAMESPACE_SLUG) as Record<string, unknown>[];
   return rows.map(rowToNamespace);
+}
+
+/** Namespaces shown on the marketing home page (Haikyu remains available at /haikyu). */
+export function getNamespacesForHomepage(): Namespace[] {
+  return getAllNamespaces().filter((ns) => ns.slug !== HAIKYU_NAMESPACE_SLUG);
 }
 
 export function getDefaultNamespace(): Namespace | null {

@@ -2,12 +2,16 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { Card } from "@/components/ui";
 import { namespaceAppPath } from "@/lib/namespace-paths";
-import { DEFAULT_NAMESPACE_SLUG, getAllNamespaces, getDefaultNamespace } from "@/lib/namespaces";
+import {
+  DEFAULT_NAMESPACE_SLUG,
+  getDefaultNamespace,
+  getNamespacesForHomepage,
+} from "@/lib/namespaces";
 
 export const dynamic = "force-dynamic";
 
 export default function Home() {
-  const namespaces = getAllNamespaces();
+  const namespaces = getNamespacesForHomepage();
   const defaultNamespace = getDefaultNamespace();
   const defaultHref = namespaceAppPath(DEFAULT_NAMESPACE_SLUG);
 
