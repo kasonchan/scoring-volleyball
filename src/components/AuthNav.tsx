@@ -1,19 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { LogoutButton } from "@/components/LogoutButton";
-import type { PublicUser } from "@/lib/users";
 
 export function AuthNav() {
-  const [user, setUser] = useState<PublicUser | null | undefined>(undefined);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => setUser(data.user ?? null))
-      .catch(() => setUser(null));
-  }, []);
+  const { user } = useAuth();
 
   if (user === undefined) {
     return <div className="w-20 border-l border-slate-200 pl-2 ml-2" aria-hidden />;
@@ -40,12 +32,21 @@ export function AuthNav() {
 
   return (
     <div className="flex items-center gap-2 border-l border-slate-200 pl-2 ml-2">
-      <span className="hidden sm:inline text-sm text-slate-600">
+      <Link
+        href="/profile"
+        className="hidden sm:inline text-sm text-slate-600 hover:text-slate-900"
+      >
         <span className="font-medium text-slate-900">
           {user.firstName} {user.lastName}
         </span>
         <span className="text-slate-400"> @{user.handle}</span>
-      </span>
+      </Link>
+      <Link
+        href="/profile"
+        className="sm:hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+      >
+        Profile
+      </Link>
       <LogoutButton />
     </div>
   );

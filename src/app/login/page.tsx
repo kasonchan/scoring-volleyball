@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { Nav } from "@/components/Nav";
 import { AuthField, AuthForm } from "@/components/AuthForm";
 import { Button, Card } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setUser } = useAuth();
   const [tokenSent, setTokenSent] = useState(false);
   const [sendError, setSendError] = useState("");
   const [sending, setSending] = useState(false);
@@ -46,6 +48,7 @@ export default function LoginPage() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Login failed");
+    if (data.user) setUser(data.user);
     router.push("/");
     router.refresh();
   }

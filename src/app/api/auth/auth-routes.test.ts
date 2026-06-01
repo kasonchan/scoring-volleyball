@@ -180,4 +180,54 @@ describe("auth API routes", () => {
     const res = await GET();
     expect(res.status).toBe(401);
   });
+
+  it("PATCH /api/auth/me updates profile when signed in", async () => {
+    const token = await signupAndGetToken("profile@example.com");
+    const { POST: login } = await import("@/app/api/auth/login/route");
+    await login(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "profile@example.com", token }),
+      })
+    );
+    const sessionToken = cookieSet.mock.calls.at(-1)?.[1] as string;
+    cookieGet.mockReturnValue({ value: sessionToken });
+
+    const { PATCH } = await import("@/app/api/auth/me/route");
+    const res = await PATCH(
+      new Request("http://localhost/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: "Updated",
+          lastName: "User",
+          email: "profile@example.com",
+          handle: "updated_user",
+        }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.user.firstName).toBe("Updated");
+    expect(data.user.handle).toBe("updated_user");
+  });
+
+  it("PATCH /api/auth/me returns 401 without session", async () => {
+    cookieGet.mockReturnValue(undefined);
+    const { PATCH } = await import("@/app/api/auth/me/route");
+    const res = await PATCH(
+      new Request("http://localhost/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: "A",
+          lastName: "B",
+          email: "x@example.com",
+          handle: "ab_user",
+        }),
+      })
+    );
+    expect(res.status).toBe(401);
+  });
 });

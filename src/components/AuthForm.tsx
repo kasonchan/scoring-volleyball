@@ -61,6 +61,9 @@ export function AuthField({
   autoComplete,
   hint,
   placeholder,
+  defaultValue,
+  value,
+  onChange,
 }: {
   label: string;
   name: string;
@@ -69,6 +72,9 @@ export function AuthField({
   autoComplete?: string;
   hint?: string;
   placeholder?: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
   return (
     <div>
@@ -82,6 +88,9 @@ export function AuthField({
         required={required}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        defaultValue={value === undefined ? defaultValue : undefined}
+        value={value === undefined ? undefined : value}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         className={inputClassName}
       />
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}

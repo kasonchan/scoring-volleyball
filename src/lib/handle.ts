@@ -40,9 +40,11 @@ function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 6);
 }
 
-export function handleExists(handle: string): boolean {
+export function handleExists(handle: string, exceptUserId?: string): boolean {
   const db = getDb();
-  const row = db.prepare("SELECT 1 FROM users WHERE handle = ?").get(handle);
+  const row = exceptUserId
+    ? db.prepare("SELECT 1 FROM users WHERE handle = ? AND id != ?").get(handle, exceptUserId)
+    : db.prepare("SELECT 1 FROM users WHERE handle = ?").get(handle);
   return Boolean(row);
 }
 
@@ -79,6 +81,30 @@ export function resolveSignupHandle(
     };
   }
   if (handleExists(handle)) {
+    return { error: "That handle is already taken." };
+  }
+  return { handle };
+}
+
+export function resolveProfileHandle(
+  userId: string,
+  handleInput: string
+): { handle: string } | { error: string } {
+  const handle = normalizeHandle(handleInput);
+  if (!isValidHandle(handle)) {
+    return {
+      error:
+        "Handle must be 3–30 characters: lowercase letters, numbers, and underscores (not at start/end).",
+    };
+  }
+  const db = getDb();
+  const current = db
+    .prepare("SELECT handle FROM users WHERE id = ?")
+    .get(userId) as { handle: string } | undefined;
+  if (current && normalizeHandle(current.handle) === handle) {
+    return { handle: current.handle };
+  }
+  if (handleExists(handle, userId)) {
     return { error: "That handle is already taken." };
   }
   return { handle };

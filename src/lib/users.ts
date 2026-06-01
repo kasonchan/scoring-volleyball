@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { getDb, usersTableHasColumn } from "./db";
-import { resolveSignupHandle } from "./handle";
+import { resolveProfileHandle, resolveSignupHandle } from "./handle";
 
 /** Legacy column placeholder; auth uses email tokens only. */
 export const UNUSED_PASSWORD_HASH = "email-token-only";
@@ -19,6 +19,13 @@ export interface SignupInput {
   lastName: string;
   email: string;
   handle?: string | null;
+}
+
+export interface UpdateProfileInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  handle: string;
 }
 
 function rowToPublicUser(row: Record<string, unknown>): PublicUser {
@@ -92,5 +99,41 @@ export function createUser(input: SignupInput): PublicUser {
 
   const user = getUserById(id);
   if (!user) throw new Error("Failed to create user");
+  return user;
+}
+
+export function updateUserProfile(userId: string, input: UpdateProfileInput): PublicUser {
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const email = input.email.trim().toLowerCase();
+
+  if (!firstName) throw new Error("First name is required");
+  if (!lastName) throw new Error("Last name is required");
+  if (!email) throw new Error("Email is required");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address");
+
+  const handleResult = resolveProfileHandle(userId, input.handle);
+  if ("error" in handleResult) throw new Error(handleResult.error);
+
+  const db = getDb();
+  const emailTaken = db
+    .prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?")
+    .get(email, userId) as { id: string } | undefined;
+  if (emailTaken) throw new Error("An account with this email already exists");
+
+  const displayName = `${firstName} ${lastName}`.trim();
+
+  if (usersTableHasColumn("name")) {
+    db.prepare(
+      `UPDATE users SET first_name = ?, last_name = ?, email = ?, handle = ?, name = ? WHERE id = ?`
+    ).run(firstName, lastName, email, handleResult.handle, displayName, userId);
+  } else {
+    db.prepare(
+      `UPDATE users SET first_name = ?, last_name = ?, email = ?, handle = ? WHERE id = ?`
+    ).run(firstName, lastName, email, handleResult.handle, userId);
+  }
+
+  const user = getUserById(userId);
+  if (!user) throw new Error("Failed to update profile");
   return user;
 }

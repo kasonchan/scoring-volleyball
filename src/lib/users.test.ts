@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createUser, getUserByEmail } from "@/lib/users";
+import { createUser, getUserByEmail, updateUserProfile } from "@/lib/users";
 import { setupTestDatabase } from "@/test/test-db";
 
 describe("users", () => {
@@ -50,6 +50,45 @@ describe("users", () => {
         email: "x@example.com",
       })
     ).toThrow(/first name/i);
+  });
+
+  it("updates profile fields", () => {
+    const user = createUser({
+      firstName: "Old",
+      lastName: "Name",
+      email: "old@example.com",
+      handle: "old_name",
+    });
+    const updated = updateUserProfile(user.id, {
+      firstName: "New",
+      lastName: "Person",
+      email: "new@example.com",
+      handle: "new_person",
+    });
+    expect(updated.firstName).toBe("New");
+    expect(updated.email).toBe("new@example.com");
+    expect(updated.handle).toBe("new_person");
+  });
+
+  it("rejects duplicate email on profile update", () => {
+    const a = createUser({
+      firstName: "A",
+      lastName: "One",
+      email: "a@example.com",
+    });
+    createUser({
+      firstName: "B",
+      lastName: "Two",
+      email: "b@example.com",
+    });
+    expect(() =>
+      updateUserProfile(a.id, {
+        firstName: "A",
+        lastName: "One",
+        email: "b@example.com",
+        handle: a.handle,
+      })
+    ).toThrow(/email already exists/i);
   });
 
   it("stores email case-insensitively", () => {
