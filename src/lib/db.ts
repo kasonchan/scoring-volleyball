@@ -2,11 +2,10 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import { HAIKYU_NAMESPACE_SLUG } from "./constants";
+import { DEFAULT_NAMESPACE_SLUG } from "./constants";
 import { generateUniqueHandle } from "./handle";
 
-const DEFAULT_NAMESPACE_SLUG = HAIKYU_NAMESPACE_SLUG;
-const DEFAULT_NAMESPACE_NAME = "Haikyu";
+const DEFAULT_NAMESPACE_NAME = "Public";
 const DEFAULT_NAMESPACE_DESCRIPTION =
   "Default volleyball league and tournament scoring.";
 
@@ -334,23 +333,12 @@ function migrateSchema(database: Database.Database) {
     );
   }
 
-  let namespaceId = (
-    database
-      .prepare("SELECT id FROM namespaces WHERE slug = ?")
-      .get(DEFAULT_NAMESPACE_SLUG) as { id: string } | undefined
-  )?.id;
-
-  if (!namespaceId) {
-    namespaceId = uuidv4();
-    database
-      .prepare("INSERT INTO namespaces (id, slug, name, description) VALUES (?, ?, ?, ?)")
-      .run(
-        namespaceId,
-        DEFAULT_NAMESPACE_SLUG,
-        DEFAULT_NAMESPACE_NAME,
-        DEFAULT_NAMESPACE_DESCRIPTION
-      );
-  }
+  let namespaceId = ensureNamespace(
+    database,
+    DEFAULT_NAMESPACE_SLUG,
+    DEFAULT_NAMESPACE_NAME,
+    DEFAULT_NAMESPACE_DESCRIPTION
+  );
 
   database.prepare("UPDATE teams SET namespace_id = ? WHERE namespace_id IS NULL").run(namespaceId);
   database
@@ -360,6 +348,30 @@ function migrateSchema(database: Database.Database) {
 
   migrateUsersTable(database);
   migrateLoginTokensTable(database);
+}
+
+function ensureNamespace(
+  database: Database.Database,
+  slug: string,
+  name: string,
+  description: string
+): string {
+  const existing = database
+    .prepare("SELECT id FROM namespaces WHERE slug = ?")
+    .get(slug) as { id: string } | undefined;
+
+  if (existing) {
+    database
+      .prepare("UPDATE namespaces SET name = ?, description = ? WHERE slug = ?")
+      .run(name, description, slug);
+    return existing.id;
+  }
+
+  const id = uuidv4();
+  database
+    .prepare("INSERT INTO namespaces (id, slug, name, description) VALUES (?, ?, ?, ?)")
+    .run(id, slug, name, description);
+  return id;
 }
 
 function migrateLoginTokensTable(database: Database.Database) {

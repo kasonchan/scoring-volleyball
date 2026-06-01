@@ -2,17 +2,30 @@ import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { Card } from "@/components/ui";
 import { namespaceAppPath } from "@/lib/namespace-paths";
-import { getAllNamespaces } from "@/lib/namespaces";
+import { DEFAULT_NAMESPACE_SLUG, getAllNamespaces, getDefaultNamespace } from "@/lib/namespaces";
 
 export const dynamic = "force-dynamic";
 
 export default function Home() {
   const namespaces = getAllNamespaces();
+  const defaultNamespace = getDefaultNamespace();
+  const defaultHref = namespaceAppPath(DEFAULT_NAMESPACE_SLUG);
 
   return (
     <>
       <Nav />
       <main className="mx-auto max-w-6xl flex-1 px-4 py-12">
+        {defaultNamespace ? (
+          <div className="mb-8 flex justify-center">
+            <Link
+              href={defaultHref}
+              className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-orange-700"
+            >
+              Open {defaultNamespace.name} scoring
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
+        ) : null}
         <div className="mb-12 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             Volleyball Online Scoring
@@ -74,6 +87,11 @@ export default function Home() {
                       <div>
                         <h3 className="text-xl font-semibold text-slate-900 group-hover:text-orange-600">
                           {ns.name}
+                          {ns.slug === DEFAULT_NAMESPACE_SLUG ? (
+                            <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                              Default
+                            </span>
+                          ) : null}
                         </h3>
                         {ns.description ? (
                           <p className="mt-1 text-slate-600">{ns.description}</p>

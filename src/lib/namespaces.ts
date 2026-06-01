@@ -1,7 +1,7 @@
 import { getDb } from "./db";
-import { HAIKYU_NAMESPACE_SLUG } from "./constants";
+import { DEFAULT_NAMESPACE_SLUG } from "./constants";
 
-export { HAIKYU_NAMESPACE_SLUG };
+export { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
 
 export interface Namespace {
   id: string;
@@ -23,11 +23,17 @@ function rowToNamespace(row: Record<string, unknown>): Namespace {
 
 export function getAllNamespaces(): Namespace[] {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM namespaces ORDER BY name").all() as Record<
-    string,
-    unknown
-  >[];
+  const rows = db
+    .prepare(
+      `SELECT * FROM namespaces
+       ORDER BY CASE WHEN slug = ? THEN 0 ELSE 1 END, name`
+    )
+    .all(DEFAULT_NAMESPACE_SLUG) as Record<string, unknown>[];
   return rows.map(rowToNamespace);
+}
+
+export function getDefaultNamespace(): Namespace | null {
+  return getNamespaceBySlug(DEFAULT_NAMESPACE_SLUG);
 }
 
 export function getNamespaceBySlug(slug: string): Namespace | null {
