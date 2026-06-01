@@ -5,9 +5,11 @@ import { Match, Rally, formatRallyTime, getMatchSummary } from "@/lib/types";
 export function MatchScoreboard({
   match,
   ultraCompact = false,
+  fitScreen = false,
 }: {
   match: Match;
   ultraCompact?: boolean;
+  fitScreen?: boolean;
 }) {
   const summary = getMatchSummary(match);
   const homeScore = summary.currentSet?.homeScore ?? 0;
@@ -15,6 +17,42 @@ export function MatchScoreboard({
   const rallies = match.rallies ?? [];
   const latestRally = rallies.length > 0 ? rallies[rallies.length - 1] : null;
   const needsRallyStart = matchNeedsRallyStart(rallies, homeScore, awayScore);
+
+  if (fitScreen) {
+    return (
+      <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-center shadow-sm">
+        <p className="text-[9px] font-medium uppercase tracking-wide text-slate-500">
+          Set {match.currentSet}
+        </p>
+        <div className="mt-0.5 flex items-center justify-center gap-2">
+          <div className="min-w-0 text-center">
+            <p className="truncate text-[9px] font-medium text-blue-700">
+              {match.homeTeam?.name}
+            </p>
+            <p className="text-2xl font-bold leading-none text-blue-600">{homeScore}</p>
+            <p className="text-[8px] text-slate-500">{summary.homeSets}</p>
+          </div>
+          <span className="text-lg font-light text-slate-300">:</span>
+          <div className="min-w-0 text-center">
+            <p className="truncate text-[9px] font-medium text-teal-700">
+              {match.awayTeam?.name}
+            </p>
+            <p className="text-2xl font-bold leading-none text-teal-600">{awayScore}</p>
+            <p className="text-[8px] text-slate-500">{summary.awaySets}</p>
+          </div>
+        </div>
+        <p className="mt-0.5 truncate text-[8px] leading-tight text-slate-600">
+          {needsRallyStart
+            ? rallies.length === 0
+              ? "Awaiting rally"
+              : "Between rallies"
+            : latestRally
+              ? `R${rallies.length} · ${formatRallyTime(latestRally.createdAt)}`
+              : null}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <Card className={ultraCompact ? "!p-3" : "!p-4"}>

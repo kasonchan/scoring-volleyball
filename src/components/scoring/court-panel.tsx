@@ -106,11 +106,25 @@ function ReadOnlyActionBadges({
   liberoInCount,
   timeoutCount,
   substitutionCount,
+  ultraCompact = false,
 }: {
   liberoInCount: number;
   timeoutCount: number;
   substitutionCount: number;
+  ultraCompact?: boolean;
 }) {
+  if (ultraCompact) {
+    return (
+      <div className="mt-0.5 flex flex-wrap justify-center gap-x-1 text-[8px] font-medium leading-tight text-slate-500">
+        <span>L{liberoInCount}</span>
+        <span>·</span>
+        <span>TO{timeoutCount}/{MAX_TIMEOUTS_PER_SET}</span>
+        <span>·</span>
+        <span>S{substitutionCount}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-2 flex flex-wrap gap-1">
       <span className="rounded-md border border-slate-200 bg-white/80 px-2 py-0.5 text-[10px] font-medium text-slate-600">
@@ -145,6 +159,7 @@ export function CourtPanel({
   liberoLoading,
   rallyInProgress,
   compact = false,
+  ultraCompact = false,
   readOnly = false,
   showRoster = true,
 }: {
@@ -166,6 +181,7 @@ export function CourtPanel({
   liberoLoading?: boolean;
   rallyInProgress: boolean;
   compact?: boolean;
+  ultraCompact?: boolean;
   readOnly?: boolean;
   showRoster?: boolean;
 }) {
@@ -198,15 +214,32 @@ export function CourtPanel({
   const bg = color === "blue" ? "bg-blue-50 border-blue-200" : "bg-teal-50 border-teal-200";
   const accent = color === "blue" ? "text-blue-700" : "text-teal-700";
   const positions = side === "left" ? LEFT_COURT_POSITIONS : RIGHT_COURT_POSITIONS;
+  const panelPadding = ultraCompact ? "p-1" : compact ? "p-3" : "p-4";
+  const headerMargin = ultraCompact ? "mb-0.5" : compact ? "mb-2" : "mb-3";
+  const gridGap = ultraCompact ? "gap-0.5" : compact ? "gap-1.5" : "gap-2";
+  const cellPadding = ultraCompact ? "p-0.5" : compact ? "p-1.5" : "p-2";
 
   return (
-    <div className={`rounded-xl border ${compact ? "p-3" : "p-4"} ${bg}`}>
-      <div className={`flex items-center justify-between gap-2 ${compact ? "mb-2" : "mb-3"}`}>
-        <h3 className={`font-semibold ${compact ? "text-sm" : ""} ${accent}`}>{teamName}</h3>
-        {serving && <Badge color="orange">Serving</Badge>}
+    <div className={`flex h-full min-h-0 flex-col rounded-lg border ${panelPadding} ${bg}`}>
+      <div className={`flex shrink-0 items-center justify-between gap-1 ${headerMargin}`}>
+        <h3
+          className={`min-w-0 truncate font-semibold ${accent} ${
+            ultraCompact ? "text-[10px] leading-tight" : compact ? "text-sm" : ""
+          }`}
+        >
+          {teamName}
+        </h3>
+        {serving &&
+          (ultraCompact ? (
+            <span className="shrink-0 text-[8px] font-semibold uppercase text-orange-600">Srv</span>
+          ) : (
+            <Badge color="orange">Serving</Badge>
+          ))}
       </div>
       <div
-        className={`grid grid-cols-2 text-center ${compact ? "gap-1.5 text-xs" : "gap-2 text-sm"}`}
+        className={`grid min-h-0 flex-1 grid-cols-2 content-start text-center ${gridGap} ${
+          ultraCompact ? "text-[10px]" : compact ? "text-xs" : "text-sm"
+        }`}
       >
         {positions.map((pos) => {
           const entry = teamRotations.find((r) => r.position === pos);
@@ -221,32 +254,45 @@ export function CourtPanel({
           return (
             <div
               key={pos}
-              className={`rounded-lg bg-white shadow-sm ${compact ? "p-1.5" : "p-2"} ${isServer ? "ring-2 ring-orange-400" : ""}`}
+              className={`rounded bg-white shadow-sm ${cellPadding} ${isServer ? "ring-1 ring-orange-400" : ""}`}
             >
-              <div className="flex items-center justify-between gap-1">
-                <div className="text-xs text-slate-400">P{pos}</div>
-                <div className="flex items-center gap-1">
+              <div className="flex items-center justify-between gap-0.5">
+                <div className={ultraCompact ? "text-[8px] text-slate-400" : "text-xs text-slate-400"}>
+                  P{pos}
+                </div>
+                <div className="flex items-center gap-0.5">
                   {isActiveLibero && (
-                    <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">
+                    <span
+                      className={`rounded-full bg-violet-100 font-medium text-violet-800 ${
+                        ultraCompact ? "px-0.5 text-[7px]" : "px-1.5 py-0.5 text-[10px]"
+                      }`}
+                    >
                       L
                     </span>
                   )}
                   {captainLabel && (
-                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                    <span
+                      className={`rounded-full bg-amber-100 font-medium text-amber-800 ${
+                        ultraCompact ? "px-0.5 text-[7px]" : "px-1.5 py-0.5 text-[10px]"
+                      }`}
+                    >
                       {captainLabel === "Team Captain" ? "TC" : "GC"}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="font-bold text-slate-900">
+              <div className={`font-bold text-slate-900 ${ultraCompact ? "text-xs leading-none" : ""}`}>
                 {entry?.player ? `#${entry.player.jerseyNumber}` : "—"}
               </div>
-              <div className="truncate text-xs text-slate-600">{entry?.player?.name ?? ""}</div>
+              {!ultraCompact && (
+                <div className="truncate text-xs text-slate-600">{entry?.player?.name ?? ""}</div>
+              )}
             </div>
           );
         })}
       </div>
-      {!needsGameCaptainAssignment(players, onCourtPlayerIds, gameCaptainId) ? null : (
+      {!ultraCompact &&
+        needsGameCaptainAssignment(players, onCourtPlayerIds, gameCaptainId) && (
         <p
           className={`rounded-lg border border-amber-200 bg-amber-50 text-amber-900 ${
             compact ? "mt-2 px-2 py-1 text-[10px] leading-snug" : "mt-3 px-3 py-2 text-xs"
@@ -260,6 +306,7 @@ export function CourtPanel({
           liberoInCount={liberoInCount}
           timeoutCount={timeouts.length}
           substitutionCount={substitutions.length}
+          ultraCompact={ultraCompact}
         />
       ) : (
         (onTimeout || onOpenSubstitute || onLiberoIn) && (
