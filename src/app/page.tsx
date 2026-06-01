@@ -16,7 +16,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <Link href="/admin" className="group">
             <Card className="h-full transition-shadow hover:shadow-md">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100 text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-colors">
@@ -57,6 +57,20 @@ export default function Home() {
               <h2 className="text-xl font-semibold text-slate-900">Referee</h2>
               <p className="mt-2 text-slate-600">
                 Connect to a live match for a read-only court and score view.
+              </p>
+            </Card>
+          </Link>
+
+          <Link href="/spectator" className="group">
+            <Card className="h-full transition-shadow hover:shadow-md">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-600 group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-slate-900">Spectator</h2>
+              <p className="mt-2 text-slate-600">
+                Watch any match live with the full scorer view — read-only.
               </p>
             </Card>
           </Link>
