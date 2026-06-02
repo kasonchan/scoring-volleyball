@@ -48,23 +48,6 @@ export function NamespaceDirectory() {
     }
   }
 
-  async function joinAll() {
-    setBusySlug("__all__");
-    setError("");
-    try {
-      const res = await fetch("/api/auth/namespaces/join-all", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to join all");
-      setNamespaces(data.namespaces ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to join all");
-    } finally {
-      setBusySlug(null);
-    }
-  }
-
-  const unjoinedCount = namespaces.filter((ns) => !ns.joined).length;
-
   if (loading) {
     return <p className="text-center text-slate-500">Loading namespaces…</p>;
   }
@@ -72,19 +55,6 @@ export function NamespaceDirectory() {
   return (
     <div className="space-y-4">
       {error ? <p className="text-center text-sm text-red-600">{error}</p> : null}
-
-      {user && unjoinedCount > 0 ? (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={joinAll}
-            disabled={busySlug !== null}
-            className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-100 disabled:opacity-50"
-          >
-            {busySlug === "__all__" ? "Joining…" : `Join all namespaces (${unjoinedCount})`}
-          </button>
-        </div>
-      ) : null}
 
       {namespaces.length === 0 ? (
         <p className="text-center text-slate-500">No namespaces configured yet.</p>
