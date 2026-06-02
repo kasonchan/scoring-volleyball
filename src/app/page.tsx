@@ -3,25 +3,26 @@ import { Nav } from "@/components/Nav";
 import { Card } from "@/components/ui";
 import { NamespaceDirectory } from "@/components/NamespaceDirectory";
 import { namespaceAppPath } from "@/lib/namespace-paths";
-import { DEFAULT_NAMESPACE_SLUG, getDefaultNamespace } from "@/lib/namespaces";
+import { getAutoJoinNamespace } from "@/lib/namespaces";
+import { PUBLIC_NAMESPACE_SLUG } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 export default function Home() {
-  const defaultNamespace = getDefaultNamespace();
-  const defaultHref = namespaceAppPath(DEFAULT_NAMESPACE_SLUG);
+  const autoJoinNamespace = getAutoJoinNamespace();
+  const defaultHref = namespaceAppPath(PUBLIC_NAMESPACE_SLUG);
 
   return (
     <>
       <Nav />
       <main className="mx-auto max-w-6xl flex-1 px-4 py-12">
-        {defaultNamespace ? (
+        {autoJoinNamespace ? (
           <div className="mb-8 flex justify-center">
             <Link
               href={defaultHref}
               className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-orange-700"
             >
-              Open {defaultNamespace.name} scoring
+              Open {autoJoinNamespace.name} scoring
               <span aria-hidden>→</span>
             </Link>
           </div>

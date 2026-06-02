@@ -4,6 +4,8 @@ import { getSessionUser } from "@/lib/session";
 
 export async function GET() {
   const user = await getSessionUser();
-  const namespaces = listNamespacesWithMembership(user?.id ?? null);
+  const namespaces = listNamespacesWithMembership(user?.id ?? null, {
+    publicDirectory: true,
+  });
   return NextResponse.json({ namespaces });
 }

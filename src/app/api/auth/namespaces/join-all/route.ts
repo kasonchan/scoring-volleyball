@@ -9,6 +9,6 @@ export async function POST() {
   }
 
   joinAllNamespaces(user.id);
-  const namespaces = listNamespacesWithMembership(user.id);
+  const namespaces = listNamespacesWithMembership(user.id, { publicDirectory: true });
   return NextResponse.json({ namespaces });
 }

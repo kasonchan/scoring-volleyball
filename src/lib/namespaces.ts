@@ -1,7 +1,17 @@
 import { getDb } from "./db";
-import { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
+import {
+  AUTO_JOIN_NAMESPACE_SLUG,
+  DEFAULT_NAMESPACE_SLUG,
+  HAIKYU_NAMESPACE_SLUG,
+  PUBLIC_NAMESPACE_SLUG,
+} from "./constants";
 
-export { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG, PUBLIC_NAMESPACE_SLUG } from "./constants";
+export {
+  AUTO_JOIN_NAMESPACE_SLUG,
+  DEFAULT_NAMESPACE_SLUG,
+  HAIKYU_NAMESPACE_SLUG,
+  PUBLIC_NAMESPACE_SLUG,
+} from "./constants";
 
 export interface Namespace {
   id: string;
@@ -32,13 +42,28 @@ export function getAllNamespaces(): Namespace[] {
   return rows.map(rowToNamespace);
 }
 
-/** Namespaces shown on the marketing home page (Haikyu remains available at /haikyu). */
+/** Hidden from the public home namespace directory (still reachable by direct URL). */
+export function isNamespaceHiddenFromPublicDirectory(slug: string): boolean {
+  return slug === HAIKYU_NAMESPACE_SLUG || slug === DEFAULT_NAMESPACE_SLUG;
+}
+
+export function filterNamespacesForPublicDirectory<T extends { slug: string }>(
+  namespaces: T[]
+): T[] {
+  return namespaces.filter((ns) => !isNamespaceHiddenFromPublicDirectory(ns.slug));
+}
+
+/** Namespaces shown on the marketing home page. */
 export function getNamespacesForHomepage(): Namespace[] {
-  return getAllNamespaces().filter((ns) => ns.slug !== HAIKYU_NAMESPACE_SLUG);
+  return filterNamespacesForPublicDirectory(getAllNamespaces());
 }
 
 export function getDefaultNamespace(): Namespace | null {
   return getNamespaceBySlug(DEFAULT_NAMESPACE_SLUG);
+}
+
+export function getAutoJoinNamespace(): Namespace | null {
+  return getNamespaceBySlug(AUTO_JOIN_NAMESPACE_SLUG);
 }
 
 export function getNamespaceBySlug(slug: string): Namespace | null {

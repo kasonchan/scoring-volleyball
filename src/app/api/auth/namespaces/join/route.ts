@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     joinNamespace(user.id, body.slug.trim());
-    const namespaces = listNamespacesWithMembership(user.id);
+    const namespaces = listNamespacesWithMembership(user.id, { publicDirectory: true });
     return NextResponse.json({ namespaces });
   } catch (error) {
     return NextResponse.json(

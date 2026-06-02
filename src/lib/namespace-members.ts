@@ -1,8 +1,8 @@
-import { DEFAULT_NAMESPACE_SLUG } from "./constants";
+import { AUTO_JOIN_NAMESPACE_SLUG } from "./constants";
 import { getDb } from "./db";
 import {
+  filterNamespacesForPublicDirectory,
   getAllNamespaces,
-  getDefaultNamespace,
   getNamespaceBySlug,
   Namespace,
 } from "./namespaces";
@@ -43,10 +43,10 @@ export function addNamespaceMember(userId: string, namespaceId: string): void {
   ).run(userId, namespaceId);
 }
 
-export function ensureGlobalMembership(userId: string): void {
-  const global = getDefaultNamespace();
-  if (!global) return;
-  addNamespaceMember(userId, global.id);
+export function ensurePublicMembership(userId: string): void {
+  const ns = getNamespaceBySlug(AUTO_JOIN_NAMESPACE_SLUG);
+  if (!ns) return;
+  addNamespaceMember(userId, ns.id);
 }
 
 export function joinNamespace(userId: string, slug: string): Namespace {
@@ -74,7 +74,7 @@ export function getJoinedNamespaces(userId: string): Namespace[] {
        WHERE m.user_id = ?
        ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`
     )
-    .all(userId, DEFAULT_NAMESPACE_SLUG) as Record<string, unknown>[];
+    .all(userId, AUTO_JOIN_NAMESPACE_SLUG) as Record<string, unknown>[];
   return rows.map((row) => ({
     id: row.id as string,
     slug: row.slug as string,
@@ -85,37 +85,44 @@ export function getJoinedNamespaces(userId: string): Namespace[] {
 }
 
 export function listNamespacesWithMembership(
-  userId: string | null
+  userId: string | null,
+  options?: { publicDirectory?: boolean }
 ): NamespaceWithMembership[] {
   const db = getDb();
+  let list: NamespaceWithMembership[];
+
   if (!userId) {
-    return getAllNamespaces().map((ns) => ({ ...ns, joined: false, joinedAt: null }));
+    list = getAllNamespaces().map((ns) => ({ ...ns, joined: false, joinedAt: null }));
+  } else {
+    const rows = db
+      .prepare(
+        `SELECT n.*,
+                CASE WHEN m.user_id IS NOT NULL THEN 1 ELSE 0 END AS joined,
+                m.joined_at
+         FROM namespaces n
+         LEFT JOIN namespace_members m
+           ON m.namespace_id = n.id AND m.user_id = ?
+         ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`
+      )
+      .all(userId, AUTO_JOIN_NAMESPACE_SLUG) as Record<string, unknown>[];
+    list = rows.map(rowToNamespaceWithMembership);
   }
 
-  const rows = db
-    .prepare(
-      `SELECT n.*,
-              CASE WHEN m.user_id IS NOT NULL THEN 1 ELSE 0 END AS joined,
-              m.joined_at
-       FROM namespaces n
-       LEFT JOIN namespace_members m
-         ON m.namespace_id = n.id AND m.user_id = ?
-       ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`
-    )
-    .all(userId, DEFAULT_NAMESPACE_SLUG) as Record<string, unknown>[];
-
-  return rows.map(rowToNamespaceWithMembership);
+  if (options?.publicDirectory) {
+    return filterNamespacesForPublicDirectory(list);
+  }
+  return list;
 }
 
-export function backfillGlobalMembershipForAllUsers(globalNamespaceId: string): void {
+export function backfillPublicMembershipForAllUsers(publicNamespaceId: string): void {
   const db = getDb();
   const users = db.prepare("SELECT id FROM users").all() as { id: string }[];
   for (const user of users) {
-    addNamespaceMember(user.id, globalNamespaceId);
+    addNamespaceMember(user.id, publicNamespaceId);
   }
 }
 
-/** Ensure existing session users have at least Global membership. */
+/** Ensure existing session users have at least Public membership. */
 export function syncUserNamespaceMembership(userId: string): void {
-  ensureGlobalMembership(userId);
+  ensurePublicMembership(userId);
 }

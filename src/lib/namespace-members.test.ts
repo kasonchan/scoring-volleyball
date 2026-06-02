@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_NAMESPACE_SLUG } from "@/lib/constants";
+import { AUTO_JOIN_NAMESPACE_SLUG, DEFAULT_NAMESPACE_SLUG } from "@/lib/constants";
 import {
-  ensureGlobalMembership,
+  ensurePublicMembership,
   joinAllNamespaces,
   joinNamespace,
   listNamespacesWithMembership,
 } from "@/lib/namespace-members";
+import { filterNamespacesForPublicDirectory } from "@/lib/namespaces";
 import { getNamespaceBySlug } from "@/lib/namespaces";
 import { createUser } from "@/lib/users";
 import { setupTestDatabase } from "@/test/test-db";
@@ -13,15 +14,29 @@ import { setupTestDatabase } from "@/test/test-db";
 describe("namespace-members", () => {
   setupTestDatabase();
 
-  it("auto-joins global on signup", () => {
+  it("auto-joins public on signup", () => {
     const user = createUser({
       firstName: "Member",
       lastName: "Test",
       email: "member@example.com",
     });
     const list = listNamespacesWithMembership(user.id);
+    const pub = list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG);
+    expect(pub?.joined).toBe(true);
     const global = list.find((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG);
-    expect(global?.joined).toBe(true);
+    expect(global?.joined).toBe(false);
+  });
+
+  it("hides global and haikyu from public directory list", () => {
+    const user = createUser({
+      firstName: "Dir",
+      lastName: "Test",
+      email: "dir@example.com",
+    });
+    const list = listNamespacesWithMembership(user.id, { publicDirectory: true });
+    expect(list.some((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG)).toBe(false);
+    expect(list.some((ns) => ns.slug === "haikyu")).toBe(false);
+    expect(list.some((ns) => ns.slug === "public")).toBe(true);
   });
 
   it("allows joining any namespace", () => {
@@ -38,7 +53,7 @@ describe("namespace-members", () => {
     expect(list.find((ns) => ns.slug === "haikyu")?.joined).toBe(true);
   });
 
-  it("includes the public namespace", () => {
+  it("includes the public namespace in full list", () => {
     const list = listNamespacesWithMembership(null);
     expect(list.some((ns) => ns.slug === "public" && ns.name === "Public")).toBe(true);
   });
@@ -54,16 +69,23 @@ describe("namespace-members", () => {
     expect(list.every((ns) => ns.joined)).toBe(true);
   });
 
-  it("ensureGlobalMembership is idempotent", () => {
+  it("ensurePublicMembership is idempotent", () => {
     const user = createUser({
-      firstName: "Global",
+      firstName: "Public",
       lastName: "Twice",
-      email: "global2@example.com",
+      email: "public2@example.com",
     });
-    ensureGlobalMembership(user.id);
-    ensureGlobalMembership(user.id);
+    ensurePublicMembership(user.id);
+    ensurePublicMembership(user.id);
     const list = listNamespacesWithMembership(user.id);
-    const global = list.find((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG);
-    expect(global?.joined).toBe(true);
+    const pub = list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG);
+    expect(pub?.joined).toBe(true);
+  });
+
+  it("filterNamespacesForPublicDirectory removes hidden slugs", () => {
+    const all = listNamespacesWithMembership(null);
+    const visible = filterNamespacesForPublicDirectory(all);
+    expect(visible.length).toBeLessThan(all.length);
+    expect(visible.every((ns) => ns.slug !== DEFAULT_NAMESPACE_SLUG)).toBe(true);
   });
 });

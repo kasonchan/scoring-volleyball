@@ -373,10 +373,18 @@ function migrateSchema(database: Database.Database) {
 
   migrateUsersTable(database);
   migrateLoginTokensTable(database);
-  migrateNamespaceMembersTable(database, namespaceId);
+  const publicNamespaceId = (
+    database
+      .prepare("SELECT id FROM namespaces WHERE slug = ?")
+      .get(PUBLIC_NAMESPACE_SLUG) as { id: string } | undefined
+  )?.id;
+
+  if (publicNamespaceId) {
+    migrateNamespaceMembersTable(database, publicNamespaceId);
+  }
 }
 
-function migrateNamespaceMembersTable(database: Database.Database, globalNamespaceId: string) {
+function migrateNamespaceMembersTable(database: Database.Database, publicNamespaceId: string) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS namespace_members (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -392,7 +400,7 @@ function migrateNamespaceMembersTable(database: Database.Database, globalNamespa
       `INSERT OR IGNORE INTO namespace_members (user_id, namespace_id)
        SELECT u.id, ? FROM users u`
     )
-    .run(globalNamespaceId);
+    .run(publicNamespaceId);
 }
 
 /** Rename legacy default slug `public` → `global` without losing data. */

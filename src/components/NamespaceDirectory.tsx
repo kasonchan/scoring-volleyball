@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { Card } from "@/components/ui";
-import { DEFAULT_NAMESPACE_SLUG } from "@/lib/constants";
+import { AUTO_JOIN_NAMESPACE_SLUG } from "@/lib/constants";
 import { namespaceAppPath } from "@/lib/namespace-paths";
 import type { NamespaceWithMembership } from "@/lib/namespace-members";
 
@@ -66,7 +66,7 @@ export function NamespaceDirectory() {
                 <div>
                   <h3 className="text-xl font-semibold text-slate-900">
                     {ns.name}
-                    {ns.slug === DEFAULT_NAMESPACE_SLUG ? (
+                    {ns.slug === AUTO_JOIN_NAMESPACE_SLUG ? (
                       <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
                         Default
                       </span>
@@ -118,12 +118,12 @@ export function NamespaceDirectory() {
 
       {user ? (
         <p className="text-center text-sm text-slate-500">
-          You are automatically a member of Global when you sign up. Join any other namespace to
+          You are automatically a member of Public when you sign up. Join any other namespace to
           access it from your account.
         </p>
       ) : (
         <p className="text-center text-sm text-slate-500">
-          Sign up or log in to join namespaces. New accounts are automatically added to Global.
+          Sign up or log in to join namespaces. New accounts are automatically added to Public.
         </p>
       )}
     </div>

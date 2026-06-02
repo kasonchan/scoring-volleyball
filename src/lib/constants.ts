@@ -4,6 +4,9 @@ export const DEFAULT_NAMESPACE_SLUG = "global";
 /** Public namespace slug (open league / tournament scoring). */
 export const PUBLIC_NAMESPACE_SLUG = "public";
 
+/** Namespace all users are auto-joined to on signup and session sync. */
+export const AUTO_JOIN_NAMESPACE_SLUG = PUBLIC_NAMESPACE_SLUG;
+
 /** Legacy Haikyu namespace slug (optional separate league). */
 export const HAIKYU_NAMESPACE_SLUG = "haikyu";
 
