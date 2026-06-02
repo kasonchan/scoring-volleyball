@@ -10,8 +10,8 @@ const AUTH_RATE_LIMITS: Record<
   { ip: LimitConfig; email: LimitConfig }
 > = {
   signup: {
-    ip: { limit: 10, windowMs: 60 * 60 * 1000 },
-    email: { limit: 3, windowMs: 60 * 60 * 1000 },
+    ip: { limit: 5, windowMs: 60 * 60 * 1000 },
+    email: { limit: 2, windowMs: 60 * 60 * 1000 },
   },
   "request-token": {
     ip: { limit: 20, windowMs: 15 * 60 * 1000 },

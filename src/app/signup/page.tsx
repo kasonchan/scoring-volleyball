@@ -1,16 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { AuthField, AuthForm } from "@/components/AuthForm";
+import { TurnstileChallenge } from "@/components/TurnstileChallenge";
 import { Card } from "@/components/ui";
+
+type SignupConfig = {
+  turnstileSiteKey: string | null;
+  inviteRequired: boolean;
+};
 
 export default function SignupPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [config, setConfig] = useState<SignupConfig | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/signup/config")
+      .then((r) => r.json())
+      .then((data: SignupConfig) => setConfig(data))
+      .catch(() => setConfig({ turnstileSiteKey: null, inviteRequired: false }));
+  }, []);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     const form = new FormData(e.currentTarget);
+    if (config?.turnstileSiteKey && !turnstileToken) {
+      throw new Error("Complete the verification challenge before signing up");
+    }
+
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -19,12 +38,17 @@ export default function SignupPage() {
         lastName: form.get("lastName"),
         email: form.get("email"),
         handle: form.get("handle") || null,
+        inviteCode: form.get("inviteCode") || undefined,
+        turnstileToken: turnstileToken ?? undefined,
+        website: form.get("website"),
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Signup failed");
     setSentTo(data.email as string);
   }
+
+  const loadingConfig = config === null;
 
   return (
     <>
@@ -42,6 +66,10 @@ export default function SignupPage() {
                 Go to log in
               </Link>
             </p>
+          </Card>
+        ) : loadingConfig ? (
+          <Card>
+            <p className="text-slate-600">Loading sign up…</p>
           </Card>
         ) : (
           <AuthForm
@@ -67,6 +95,15 @@ export default function SignupPage() {
               required
               autoComplete="email"
             />
+            {config.inviteRequired ? (
+              <AuthField
+                label="Invite code"
+                name="inviteCode"
+                required
+                autoComplete="off"
+                hint="Ask your league organizer for a code."
+              />
+            ) : null}
             <AuthField
               label="Handle (optional)"
               name="handle"
@@ -74,6 +111,21 @@ export default function SignupPage() {
               placeholder="e.g. kason_chan"
               hint="Leave blank to auto-generate from your name (e.g. jane_doe)."
             />
+            <div
+              className="absolute -left-[9999px] h-px w-px overflow-hidden"
+              aria-hidden
+              tabIndex={-1}
+            >
+              <label htmlFor="website">Website</label>
+              <input id="website" name="website" type="text" autoComplete="off" tabIndex={-1} />
+            </div>
+            {config.turnstileSiteKey ? (
+              <TurnstileChallenge
+                siteKey={config.turnstileSiteKey}
+                onToken={setTurnstileToken}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            ) : null}
           </AuthForm>
         )}
       </main>

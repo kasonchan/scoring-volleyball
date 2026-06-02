@@ -382,7 +382,7 @@ describe("auth API routes", () => {
     const { POST: signup } = await import("@/app/api/auth/signup/route");
     const ip = "198.51.100.99";
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       const res = await signup(
         authPost(
           "/api/auth/signup",
@@ -403,11 +403,41 @@ describe("auth API routes", () => {
         {
           firstName: "Blocked",
           lastName: "User",
-          email: "rateip11@example.com",
+          email: "rateip6@example.com",
         },
         ip
       )
     );
     expect(blocked.status).toBe(429);
+  });
+
+  it("POST /api/auth/signup rejects disposable email domains", async () => {
+    const { POST } = await import("@/app/api/auth/signup/route");
+    const res = await POST(
+      authPost("/api/auth/signup", {
+        firstName: "Spam",
+        lastName: "Bot",
+        email: "spam@mailinator.com",
+      })
+    );
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toMatch(/not allowed/i);
+  });
+
+  it("POST /api/auth/signup honeypot returns success without creating user", async () => {
+    const { POST } = await import("@/app/api/auth/signup/route");
+    const res = await POST(
+      authPost("/api/auth/signup", {
+        firstName: "Bot",
+        lastName: "Field",
+        email: "honeypot@example.com",
+        website: "https://spam.example",
+      })
+    );
+    expect(res.status).toBe(201);
+    lastEmail = null;
+    const { getUserByEmail } = await import("@/lib/users");
+    expect(getUserByEmail("honeypot@example.com")).toBeNull();
   });
 });
