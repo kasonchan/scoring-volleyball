@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestEmailSink, type LoginTokenEmailPayload } from "@/lib/email";
+import { resetRateLimitStore } from "@/lib/rate-limit";
 import { setupTestDatabase } from "@/test/test-db";
 
 const cookieSet = vi.fn();
@@ -20,6 +21,7 @@ describe("auth API routes", () => {
   let lastEmail: LoginTokenEmailPayload | null = null;
 
   beforeEach(() => {
+    resetRateLimitStore();
     cookieSet.mockClear();
     cookieDelete.mockClear();
     cookieGet.mockClear();
@@ -28,6 +30,21 @@ describe("auth API routes", () => {
       lastEmail = payload;
     });
   });
+
+  function authPost(
+    path: string,
+    body: unknown,
+    clientIp = "203.0.113.50"
+  ): Request {
+    return new Request(`http://localhost${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": clientIp,
+      },
+      body: JSON.stringify(body),
+    });
+  }
 
   async function signupAndGetToken(email = "api@example.com") {
     const { POST: signup } = await import("@/app/api/auth/signup/route");
@@ -137,14 +154,34 @@ describe("auth API routes", () => {
 
     const { POST } = await import("@/app/api/auth/request-token/route");
     const res = await POST(
-      new Request("http://localhost/api/auth/request-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "request@example.com" }),
-      })
+      authPost("/api/auth/request-token", { email: "request@example.com" })
     );
     expect(res.status).toBe(200);
     expect(lastEmail?.purpose).toBe("login");
+  });
+
+  it("POST /api/auth/request-token returns same response when email is unknown", async () => {
+    const { POST } = await import("@/app/api/auth/request-token/route");
+
+    const unknownRes = await POST(
+      authPost("/api/auth/request-token", { email: "unknown@example.com" })
+    );
+    expect(unknownRes.status).toBe(200);
+    expect(lastEmail).toBeNull();
+    const unknownBody = await unknownRes.json();
+
+    await signupAndGetToken("known@example.com");
+    lastEmail = null;
+
+    const knownRes = await POST(
+      authPost("/api/auth/request-token", { email: "known@example.com" })
+    );
+    expect(knownRes.status).toBe(200);
+    expect(lastEmail?.purpose).toBe("login");
+    const knownBody = await knownRes.json();
+
+    expect(unknownBody.message).toBe(knownBody.message);
+    expect(unknownBody).not.toHaveProperty("error");
   });
 
   it("POST /api/auth/logout clears session cookie", async () => {
@@ -213,6 +250,75 @@ describe("auth API routes", () => {
     expect(data.user.handle).toBe("updated_user");
   });
 
+  it("PATCH /api/auth/me requires token to change email", async () => {
+    const token = await signupAndGetToken("emailchange@example.com");
+    const { POST: login } = await import("@/app/api/auth/login/route");
+    await login(
+      authPost("/api/auth/login", { email: "emailchange@example.com", token })
+    );
+    const sessionToken = cookieSet.mock.calls.at(-1)?.[1] as string;
+    cookieGet.mockReturnValue({ value: sessionToken });
+
+    const { PATCH } = await import("@/app/api/auth/me/route");
+    const blocked = await PATCH(
+      new Request("http://localhost/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: "Email",
+          lastName: "Change",
+          email: "newaddr@example.com",
+          handle: "email_change",
+        }),
+      })
+    );
+    expect(blocked.status).toBe(400);
+    const blockedData = await blocked.json();
+    expect(blockedData.error).toMatch(/verification token/i);
+  });
+
+  it("PATCH /api/auth/me changes email with verification token", async () => {
+    const token = await signupAndGetToken("verifiedchange@example.com");
+    const { POST: login } = await import("@/app/api/auth/login/route");
+    await login(
+      authPost("/api/auth/login", { email: "verifiedchange@example.com", token })
+    );
+    const sessionToken = cookieSet.mock.calls.at(-1)?.[1] as string;
+    cookieGet.mockReturnValue({ value: sessionToken });
+
+    const { POST: requestChange } = await import(
+      "@/app/api/auth/me/request-email-change/route"
+    );
+    lastEmail = null;
+    const sendRes = await requestChange(
+      new Request("http://localhost/api/auth/me/request-email-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newEmail: "verifiednew@example.com" }),
+      })
+    );
+    expect(sendRes.status).toBe(200);
+    expect(lastEmail?.purpose).toBe("email_change");
+
+    const { PATCH } = await import("@/app/api/auth/me/route");
+    const res = await PATCH(
+      new Request("http://localhost/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: "Verified",
+          lastName: "Change",
+          email: "verifiednew@example.com",
+          handle: "verified_change",
+          emailVerificationToken: lastEmail!.token,
+        }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.user.email).toBe("verifiednew@example.com");
+  });
+
   it("PATCH /api/auth/me returns 401 without session", async () => {
     cookieGet.mockReturnValue(undefined);
     const { PATCH } = await import("@/app/api/auth/me/route");
@@ -229,5 +335,79 @@ describe("auth API routes", () => {
       })
     );
     expect(res.status).toBe(401);
+  });
+
+  it("POST /api/auth/request-token returns 429 when email limit exceeded", async () => {
+    await signupAndGetToken("ratelimit@example.com");
+    const { POST } = await import("@/app/api/auth/request-token/route");
+
+    for (let i = 0; i < 5; i++) {
+      const res = await POST(
+        authPost("/api/auth/request-token", { email: "ratelimit@example.com" })
+      );
+      expect(res.status).toBe(200);
+    }
+
+    const blocked = await POST(
+      authPost("/api/auth/request-token", { email: "ratelimit@example.com" })
+    );
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Retry-After")).toBeTruthy();
+    const data = await blocked.json();
+    expect(data.error).toMatch(/too many requests/i);
+  });
+
+  it("POST /api/auth/login returns 429 when email limit exceeded", async () => {
+    const { POST: login } = await import("@/app/api/auth/login/route");
+    for (let i = 0; i < 15; i++) {
+      const res = await login(
+        authPost("/api/auth/login", {
+          email: "nobody@example.com",
+          token: "AAAA-BBBB",
+        })
+      );
+      expect(res.status).toBe(401);
+    }
+
+    const blocked = await login(
+      authPost("/api/auth/login", {
+        email: "nobody@example.com",
+        token: "AAAA-BBBB",
+      })
+    );
+    expect(blocked.status).toBe(429);
+  });
+
+  it("POST /api/auth/signup returns 429 when IP limit exceeded", async () => {
+    const { POST: signup } = await import("@/app/api/auth/signup/route");
+    const ip = "198.51.100.99";
+
+    for (let i = 0; i < 10; i++) {
+      const res = await signup(
+        authPost(
+          "/api/auth/signup",
+          {
+            firstName: "Rate",
+            lastName: `User${i}`,
+            email: `rateip${i}@example.com`,
+          },
+          ip
+        )
+      );
+      expect(res.status).toBe(201);
+    }
+
+    const blocked = await signup(
+      authPost(
+        "/api/auth/signup",
+        {
+          firstName: "Blocked",
+          lastName: "User",
+          email: "rateip11@example.com",
+        },
+        ip
+      )
+    );
+    expect(blocked.status).toBe(429);
   });
 });

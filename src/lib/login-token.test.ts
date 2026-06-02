@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { setTestEmailSink, type LoginTokenEmailPayload } from "@/lib/email";
 import {
   generateLoginToken,
+  issueEmailChangeToken,
   issueLoginToken,
   normalizeLoginTokenInput,
   requestLoginTokenForEmail,
+  verifyAndConsumeEmailChangeToken,
   verifyAndConsumeLoginToken,
 } from "@/lib/login-token";
 import { createUser } from "@/lib/users";
@@ -52,13 +54,32 @@ describe("login-token", () => {
       lastName: "User",
       email: "req@example.com",
     });
-    await requestLoginTokenForEmail("req@example.com");
+    const sent = await requestLoginTokenForEmail("req@example.com");
+    expect(sent).toBe(true);
     expect(lastEmail?.purpose).toBe("login");
   });
 
-  it("requestLoginTokenForEmail fails when user missing", async () => {
-    await expect(requestLoginTokenForEmail("missing@example.com")).rejects.toThrow(
-      /no account found/i
-    );
+  it("requestLoginTokenForEmail does not send when user missing", async () => {
+    const sent = await requestLoginTokenForEmail("missing@example.com");
+    expect(sent).toBe(false);
+    expect(lastEmail).toBeNull();
+  });
+
+  it("issueEmailChangeToken sends to new email and verifies once", async () => {
+    const user = createUser({
+      firstName: "Change",
+      lastName: "Email",
+      email: "old@example.com",
+    });
+    await issueEmailChangeToken(user.id, "new@example.com");
+    expect(lastEmail?.to).toBe("new@example.com");
+    expect(lastEmail?.purpose).toBe("email_change");
+
+    expect(
+      verifyAndConsumeEmailChangeToken(user.id, "new@example.com", lastEmail!.token)
+    ).toBe(true);
+    expect(
+      verifyAndConsumeEmailChangeToken(user.id, "new@example.com", lastEmail!.token)
+    ).toBe(false);
   });
 });

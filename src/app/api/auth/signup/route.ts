@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { authRateLimitResponse } from "@/lib/auth-rate-limit";
 import { issueLoginToken } from "@/lib/login-token";
 import { createUser, SignupInput } from "@/lib/users";
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as SignupInput;
+    const limited = authRateLimitResponse(request, "signup", body.email);
+    if (limited) return limited;
     const user = createUser(body);
     await issueLoginToken(user.email, user.id, "signup");
     return NextResponse.json(

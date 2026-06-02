@@ -22,6 +22,21 @@ function appOrigin(): string {
 }
 
 function buildMessage(payload: LoginTokenEmailPayload): { subject: string; text: string } {
+  if (payload.purpose === "email_change") {
+    const subject = "Confirm your new email for Volleyball Scoring";
+    const text = [
+      "Use this token to confirm your new email address:",
+      "",
+      `  ${payload.token}`,
+      "",
+      `Open ${appOrigin()}/profile, enter this token, and save your profile.`,
+      "The token expires in 15 minutes and can only be used once.",
+      "",
+      "If you did not request this change, you can ignore this email.",
+    ].join("\n");
+    return { subject, text };
+  }
+
   const action = payload.purpose === "signup" ? "finish signing up" : "log in";
   const subject =
     payload.purpose === "signup"

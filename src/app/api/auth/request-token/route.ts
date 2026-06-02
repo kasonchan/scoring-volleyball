@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authRateLimitResponse } from "@/lib/auth-rate-limit";
 import { requestLoginTokenForEmail } from "@/lib/login-token";
 
 export async function POST(request: Request) {
@@ -8,14 +9,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
+    const limited = authRateLimitResponse(request, "request-token", body.email);
+    if (limited) return limited;
+
     await requestLoginTokenForEmail(body.email);
+
     return NextResponse.json({
       message: "If an account exists for this email, a login token was sent.",
       email: body.email.trim().toLowerCase(),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed";
-    const status = message.includes("No account found") ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Request failed" },
+      { status: 400 }
+    );
   }
 }

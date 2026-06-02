@@ -27,6 +27,8 @@ export interface UpdateProfileInput {
   lastName: string;
   email: string;
   handle: string;
+  /** Required when `email` differs from the signed-in user's current email. */
+  emailVerificationToken?: string;
 }
 
 function rowToPublicUser(row: Record<string, unknown>): PublicUser {

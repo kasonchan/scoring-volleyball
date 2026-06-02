@@ -25,6 +25,9 @@ export async function PUT(
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const { id } = await params;
+    if (!getLocation(id, ctxOrErr.ns.id)) {
+      return NextResponse.json({ error: "Location not found" }, { status: 404 });
+    }
     const body = (await request.json()) as LocationInput;
     const location = updateLocation(id, body);
     return NextResponse.json(location);

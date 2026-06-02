@@ -25,6 +25,9 @@ export async function PUT(
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const { id } = await params;
+    if (!getTeam(id, ctxOrErr.ns.id)) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
     const body = (await request.json()) as UpdateTeamInput;
     const team = updateTeam(id, body);
     return NextResponse.json(team);

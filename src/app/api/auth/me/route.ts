@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { verifyAndConsumeEmailChangeToken } from "@/lib/login-token";
 import { getSessionUser } from "@/lib/session";
 import { updateUserProfile, UpdateProfileInput } from "@/lib/users";
 
@@ -18,6 +19,32 @@ export async function PATCH(request: Request) {
     }
 
     const body = (await request.json()) as UpdateProfileInput;
+    const newEmail = body.email?.trim().toLowerCase() ?? "";
+    const currentEmail = sessionUser.email.trim().toLowerCase();
+
+    if (newEmail !== currentEmail) {
+      if (!body.emailVerificationToken?.trim()) {
+        return NextResponse.json(
+          {
+            error:
+              "A verification token is required to change your email. Request one at your new address first.",
+          },
+          { status: 400 }
+        );
+      }
+      const verified = verifyAndConsumeEmailChangeToken(
+        sessionUser.id,
+        newEmail,
+        body.emailVerificationToken
+      );
+      if (!verified) {
+        return NextResponse.json(
+          { error: "Invalid or expired email verification token" },
+          { status: 400 }
+        );
+      }
+    }
+
     const user = updateUserProfile(sessionUser.id, body);
     return NextResponse.json({ user });
   } catch (error) {

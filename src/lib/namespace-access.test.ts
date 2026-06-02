@@ -76,6 +76,197 @@ describe("namespace-access", () => {
     expect(res.status).toBe(201);
   });
 
+  it("PUT /api/teams/:id rejects cross-namespace updates", async () => {
+    const user = createUser({
+      firstName: "Cross",
+      lastName: "Ns",
+      email: "crossns@example.com",
+    });
+    joinNamespace(user.id, "public");
+    joinNamespace(user.id, "haikyu");
+
+    const { createSessionToken } = await import("@/lib/session");
+    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
+
+    const { POST } = await import("@/app/api/teams/route");
+    const createRes = await POST(
+      new Request("http://localhost/api/teams", {
+        method: "POST",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "public",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Public Only",
+          players: [{ name: "P1", jerseyNumber: 1 }],
+        }),
+      })
+    );
+    const created = await createRes.json();
+    expect(createRes.status).toBe(201);
+
+    const { PUT } = await import("@/app/api/teams/[id]/route");
+    const putRes = await PUT(
+      new Request(`http://localhost/api/teams/${created.id}`, {
+        method: "PUT",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "haikyu",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Hijacked",
+          players: [{ name: "X", jerseyNumber: 99 }],
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) }
+    );
+    expect(putRes.status).toBe(404);
+
+    const { GET } = await import("@/app/api/teams/[id]/route");
+    const getRes = await GET(request(`/api/teams/${created.id}`, "GET", "public"), {
+      params: Promise.resolve({ id: created.id }),
+    });
+    const team = await getRes.json();
+    expect(team.name).toBe("Public Only");
+  });
+
+  it("PUT /api/teams/:id updates team in the same namespace", async () => {
+    const user = createUser({
+      firstName: "Same",
+      lastName: "Ns",
+      email: "samens@example.com",
+    });
+    joinNamespace(user.id, "public");
+
+    const { createSessionToken } = await import("@/lib/session");
+    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
+
+    const { POST } = await import("@/app/api/teams/route");
+    const createRes = await POST(
+      new Request("http://localhost/api/teams", {
+        method: "POST",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "public",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Before",
+          players: [{ name: "P1", jerseyNumber: 1 }],
+        }),
+      })
+    );
+    const created = await createRes.json();
+
+    const { PUT } = await import("@/app/api/teams/[id]/route");
+    const putRes = await PUT(
+      new Request(`http://localhost/api/teams/${created.id}`, {
+        method: "PUT",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "public",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "After",
+          players: [{ name: "P1", jerseyNumber: 1 }],
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) }
+    );
+    expect(putRes.status).toBe(200);
+    const updated = await putRes.json();
+    expect(updated.name).toBe("After");
+  });
+
+  it("PUT /api/locations/:id rejects cross-namespace updates", async () => {
+    const user = createUser({
+      firstName: "Loc",
+      lastName: "Cross",
+      email: "loccross@example.com",
+    });
+    joinNamespace(user.id, "public");
+    joinNamespace(user.id, "haikyu");
+
+    const { createSessionToken } = await import("@/lib/session");
+    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
+
+    const { POST } = await import("@/app/api/locations/route");
+    const createRes = await POST(
+      new Request("http://localhost/api/locations", {
+        method: "POST",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "public",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Public Gym", address: "1 Main St" }),
+      })
+    );
+    const created = await createRes.json();
+    expect(createRes.status).toBe(201);
+
+    const { PUT } = await import("@/app/api/locations/[id]/route");
+    const putRes = await PUT(
+      new Request(`http://localhost/api/locations/${created.id}`, {
+        method: "PUT",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "haikyu",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Hijacked", address: "Elsewhere" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) }
+    );
+    expect(putRes.status).toBe(404);
+
+    const { GET } = await import("@/app/api/locations/[id]/route");
+    const getRes = await GET(request(`/api/locations/${created.id}`, "GET", "public"), {
+      params: Promise.resolve({ id: created.id }),
+    });
+    const location = await getRes.json();
+    expect(location.name).toBe("Public Gym");
+  });
+
+  it("PUT /api/locations/:id updates location in the same namespace", async () => {
+    const user = createUser({
+      firstName: "Loc",
+      lastName: "Same",
+      email: "locsame@example.com",
+    });
+    joinNamespace(user.id, "public");
+
+    const { createSessionToken } = await import("@/lib/session");
+    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
+
+    const { POST } = await import("@/app/api/locations/route");
+    const createRes = await POST(
+      new Request("http://localhost/api/locations", {
+        method: "POST",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "public",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Old Gym", address: "1 Main St" }),
+      })
+    );
+    const created = await createRes.json();
+
+    const { PUT } = await import("@/app/api/locations/[id]/route");
+    const putRes = await PUT(
+      new Request(`http://localhost/api/locations/${created.id}`, {
+        method: "PUT",
+        headers: {
+          [NAMESPACE_SLUG_HEADER]: "public",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "New Gym", address: "2 Main St" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) }
+    );
+    expect(putRes.status).toBe(200);
+    const updated = await putRes.json();
+    expect(updated.name).toBe("New Gym");
+    expect(updated.address).toBe("2 Main St");
+  });
+
   it("returns 403 for signed-in user who has not joined namespace", async () => {
     const user = createUser({
       firstName: "Guest",
