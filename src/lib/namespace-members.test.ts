@@ -5,7 +5,11 @@ import {
   joinAllNamespaces,
   joinNamespace,
   listNamespacesWithMembership,
+  syncUserNamespaceMembership,
 } from "@/lib/namespace-members";
+import { getDb } from "@/lib/db";
+import { UNUSED_PASSWORD_HASH } from "@/lib/users";
+import { v4 as uuidv4 } from "uuid";
 import { filterNamespacesForPublicDirectory } from "@/lib/namespaces";
 import { getNamespaceBySlug } from "@/lib/namespaces";
 import { createUser } from "@/lib/users";
@@ -80,6 +84,20 @@ describe("namespace-members", () => {
     const list = listNamespacesWithMembership(user.id);
     const pub = list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG);
     expect(pub?.joined).toBe(true);
+  });
+
+  it("syncUserNamespaceMembership backfills public for existing users", () => {
+    const db = getDb();
+    const userId = uuidv4();
+    db.prepare(
+      `INSERT INTO users (id, first_name, last_name, email, handle, password_hash)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(userId, "Legacy", "User", "legacy@example.com", "legacy_user", UNUSED_PASSWORD_HASH);
+
+    syncUserNamespaceMembership(userId);
+    const list = listNamespacesWithMembership(userId);
+    expect(list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG)?.joined).toBe(true);
+    expect(list.find((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG)?.joined).toBe(false);
   });
 
   it("filterNamespacesForPublicDirectory removes hidden slugs", () => {
