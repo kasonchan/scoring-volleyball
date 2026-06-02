@@ -2,6 +2,10 @@
 
 A web app for managing volleyball teams, scheduling matches, and scoring live games with rotation tracking.
 
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
+
 ## Features
 
 ### Admin
