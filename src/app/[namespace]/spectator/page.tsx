@@ -1,8 +1,9 @@
 "use client";
 
 import { useNamespacePaths } from "@/hooks/use-namespace";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { NamespaceNav } from "@/components/NamespaceNav";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { Match, formatMatchDateTime, getMatchSummary } from "@/lib/types";
@@ -35,16 +36,47 @@ function sortMatches(matches: Match[]): Match[] {
 }
 
 export default function SpectatorPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <NamespaceNav />
+          <main className="mx-auto max-w-4xl flex-1 px-4 py-8">
+            <p className="text-slate-500">Loading matches…</p>
+          </main>
+        </>
+      }
+    >
+      <SpectatorPageContent />
+    </Suspense>
+  );
+}
+
+function SpectatorPageContent() {
   const { api, app, apiFetch } = useNamespacePaths();
+  const searchParams = useSearchParams();
+  const spectatorToken = searchParams.get("t");
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState("");
 
   useEffect(() => {
-    apiFetch(api("/matches"))
-      .then((r) => r.json())
-      .then((data: Match[]) => setMatches(sortMatches(data)))
+    const query = spectatorToken ? { t: spectatorToken } : undefined;
+    apiFetch(api("/matches"), undefined, query)
+      .then(async (r) => {
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          throw new Error(data.error ?? "Could not load matches");
+        }
+        return r.json();
+      })
+      .then((data: Match[]) => {
+        setAccessError("");
+        setMatches(sortMatches(data));
+      })
+      .catch((e) => setAccessError(e instanceof Error ? e.message : "Could not load matches"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [api, apiFetch, spectatorToken]);
 
   const liveMatches = matches.filter((m) => m.status === "in_progress");
 
@@ -56,6 +88,10 @@ export default function SpectatorPage() {
           title="Spectator"
           description="Watch any match live with the same view as the scorer — read-only."
         />
+
+        {accessError ? (
+          <p className="text-center text-red-600">{accessError}</p>
+        ) : null}
 
         {loading ? (
           <p className="text-slate-500">Loading matches...</p>

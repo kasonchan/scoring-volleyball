@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { isNamespaceError, resolveNamespaceFromRequest } from "@/lib/namespace-api";
 import { isMemberContextError, requireNamespaceMember } from "@/lib/namespace-access";
+import { applySpectatorMatchView } from "@/lib/spectator-match";
+import {
+  isSpectatorViewError,
+  resolveSpectatorMatchReadAccess,
+} from "@/lib/spectator-access";
 import { deleteMatch, getMatch, updateMatch } from "@/lib/queries";
 import { UpdateMatchInput } from "@/lib/types";
 
@@ -8,14 +12,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
   const { id } = await params;
-  const match = getMatch(id, nsOrErr.id);
+  const access = await resolveSpectatorMatchReadAccess(request, id);
+  if (isSpectatorViewError(access)) return access;
+  const match = getMatch(id, access.ns.id);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
-  return NextResponse.json(match);
+  return NextResponse.json(applySpectatorMatchView(match, access.redacted));
 }
 
 export async function PUT(

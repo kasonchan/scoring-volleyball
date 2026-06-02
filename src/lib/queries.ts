@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { getDb } from "./db";
 import {
@@ -646,15 +647,73 @@ function getMatchLiberoReplacements(matchId: string, setNumber: number): LiberoR
   });
 }
 
+function generateSpectatorToken(): string {
+  return uuidv4().replace(/-/g, "");
+}
+
+export function verifyMatchSpectatorToken(
+  matchId: string,
+  namespaceId: string,
+  token: string
+): boolean {
+  const db = getDb();
+  const row = db
+    .prepare(
+      "SELECT spectator_token FROM matches WHERE id = ? AND namespace_id = ?"
+    )
+    .get(matchId, namespaceId) as { spectator_token: string | null } | undefined;
+  if (!row?.spectator_token || !token.trim()) return false;
+  try {
+    const a = Buffer.from(row.spectator_token);
+    const b = Buffer.from(token.trim());
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+export function getMatchSpectatorToken(matchId: string, namespaceId: string): string | null {
+  const db = getDb();
+  const row = db
+    .prepare("SELECT spectator_token FROM matches WHERE id = ? AND namespace_id = ?")
+    .get(matchId, namespaceId) as { spectator_token: string | null } | undefined;
+  return row?.spectator_token ?? null;
+}
+
+export function ensureMatchSpectatorToken(matchId: string, namespaceId: string): string {
+  const existing = getMatchSpectatorToken(matchId, namespaceId);
+  if (existing) return existing;
+  const token = generateSpectatorToken();
+  const db = getDb();
+  db.prepare("UPDATE matches SET spectator_token = ? WHERE id = ? AND namespace_id = ?").run(
+    token,
+    matchId,
+    namespaceId
+  );
+  return token;
+}
+
 export function createMatch(namespaceId: string, input: CreateMatchInput): Match {
   const db = getDb();
   validateMatchInput(namespaceId, input);
   const id = uuidv4();
   const locationId = input.locationId || null;
   const scheduledAt = input.scheduledAt || null;
+  const spectatorToken = generateSpectatorToken();
   db.prepare(
-    "INSERT INTO matches (id, namespace_id, home_team_id, away_team_id, location_id, scheduled_at, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')"
-  ).run(id, namespaceId, input.homeTeamId, input.awayTeamId, locationId, scheduledAt);
+    `INSERT INTO matches (
+      id, namespace_id, home_team_id, away_team_id, location_id, scheduled_at, status, spectator_token
+    ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?)`
+  ).run(
+    id,
+    namespaceId,
+    input.homeTeamId,
+    input.awayTeamId,
+    locationId,
+    scheduledAt,
+    spectatorToken
+  );
   return getMatch(id)!;
 }
 

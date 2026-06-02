@@ -1,8 +1,12 @@
+/** Who may read match data without signing in. */
+export type SpectatorAccess = "public" | "members" | "link";
+
 export interface Namespace {
   id: string;
   slug: string;
   name: string;
   description: string | null;
+  spectatorAccess: SpectatorAccess;
   createdAt: string;
 }
 

@@ -16,14 +16,6 @@ export type NamespaceMemberContext = {
   user: PublicUser;
 };
 
-/** GET /api/matches and GET /api/matches/:id — spectator read-only, no login. */
-export function isPublicSpectatorMatchApi(request: Request): boolean {
-  if (request.method !== "GET") return false;
-  const pathname = new URL(request.url).pathname;
-  if (pathname === "/api/matches") return true;
-  return /^\/api\/matches\/[^/]+$/.test(pathname);
-}
-
 export async function requireNamespaceMember(
   request: Request
 ): Promise<NamespaceMemberContext | NextResponse> {

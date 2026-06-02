@@ -323,6 +323,8 @@ function migrateSchema(database: Database.Database) {
     )
   `);
 
+  migrateNamespaceSpectatorAccess(database);
+
   const teamColumns = database.prepare("PRAGMA table_info(teams)").all() as { name: string }[];
   if (!new Set(teamColumns.map((c) => c.name)).has("namespace_id")) {
     database.exec("ALTER TABLE teams ADD COLUMN namespace_id TEXT REFERENCES namespaces(id)");
@@ -348,21 +350,24 @@ function migrateSchema(database: Database.Database) {
     database,
     HAIKYU_NAMESPACE_SLUG,
     HAIKYU_NAMESPACE_NAME,
-    HAIKYU_NAMESPACE_DESCRIPTION
+    HAIKYU_NAMESPACE_DESCRIPTION,
+    "link"
   );
 
   ensureNamespace(
     database,
     PUBLIC_NAMESPACE_SLUG,
     PUBLIC_NAMESPACE_NAME,
-    PUBLIC_NAMESPACE_DESCRIPTION
+    PUBLIC_NAMESPACE_DESCRIPTION,
+    "public"
   );
 
   let namespaceId = ensureNamespace(
     database,
     DEFAULT_NAMESPACE_SLUG,
     DEFAULT_NAMESPACE_NAME,
-    DEFAULT_NAMESPACE_DESCRIPTION
+    DEFAULT_NAMESPACE_DESCRIPTION,
+    "members"
   );
 
   database.prepare("UPDATE teams SET namespace_id = ? WHERE namespace_id IS NULL").run(namespaceId);
@@ -381,6 +386,46 @@ function migrateSchema(database: Database.Database) {
 
   if (publicNamespaceId) {
     migrateNamespaceMembersTable(database, publicNamespaceId);
+  }
+
+  migrateMatchSpectatorTokens(database);
+}
+
+function migrateNamespaceSpectatorAccess(database: Database.Database) {
+  const namespaceColumns = database
+    .prepare("PRAGMA table_info(namespaces)")
+    .all() as { name: string }[];
+  if (!new Set(namespaceColumns.map((c) => c.name)).has("spectator_access")) {
+    database.exec(
+      `ALTER TABLE namespaces ADD COLUMN spectator_access TEXT NOT NULL DEFAULT 'members'`
+    );
+  }
+  database
+    .prepare("UPDATE namespaces SET spectator_access = 'public' WHERE slug = ?")
+    .run(PUBLIC_NAMESPACE_SLUG);
+  database
+    .prepare("UPDATE namespaces SET spectator_access = 'link' WHERE slug = ?")
+    .run(HAIKYU_NAMESPACE_SLUG);
+}
+
+function migrateMatchSpectatorTokens(database: Database.Database) {
+  const matchColumns = database.prepare("PRAGMA table_info(matches)").all() as {
+    name: string;
+  }[];
+  if (!new Set(matchColumns.map((c) => c.name)).has("spectator_token")) {
+    database.exec(`ALTER TABLE matches ADD COLUMN spectator_token TEXT`);
+    const rows = database
+      .prepare("SELECT id FROM matches WHERE spectator_token IS NULL")
+      .all() as { id: string }[];
+    const update = database.prepare(
+      "UPDATE matches SET spectator_token = ? WHERE id = ?"
+    );
+    for (const row of rows) {
+      update.run(uuidv4().replace(/-/g, ""), row.id);
+    }
+    database.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_spectator_token ON matches(spectator_token)`
+    );
   }
 }
 
@@ -434,7 +479,8 @@ function ensureNamespace(
   database: Database.Database,
   slug: string,
   name: string,
-  description: string
+  description: string,
+  spectatorAccess: "public" | "members" | "link" = "members"
 ): string {
   const existing = database
     .prepare("SELECT id FROM namespaces WHERE slug = ?")
@@ -442,15 +488,19 @@ function ensureNamespace(
 
   if (existing) {
     database
-      .prepare("UPDATE namespaces SET name = ?, description = ? WHERE slug = ?")
-      .run(name, description, slug);
+      .prepare(
+        "UPDATE namespaces SET name = ?, description = ?, spectator_access = ? WHERE slug = ?"
+      )
+      .run(name, description, spectatorAccess, slug);
     return existing.id;
   }
 
   const id = uuidv4();
   database
-    .prepare("INSERT INTO namespaces (id, slug, name, description) VALUES (?, ?, ?, ?)")
-    .run(id, slug, name, description);
+    .prepare(
+      "INSERT INTO namespaces (id, slug, name, description, spectator_access) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(id, slug, name, description, spectatorAccess);
   return id;
 }
 

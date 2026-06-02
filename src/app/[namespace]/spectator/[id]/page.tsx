@@ -1,9 +1,9 @@
 "use client";
 
 import { useNamespacePaths } from "@/hooks/use-namespace";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { NamespaceNav } from "@/components/NamespaceNav";
 import { CurrentTimeClock } from "@/components/CurrentTimeClock";
 import { CompletedSetsSummary } from "@/components/scoring/completed-sets-summary";
@@ -52,9 +52,32 @@ function CompactModeToggle({
 }
 
 export default function SpectatorMatchPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <NamespaceNav />
+          <main className="mx-auto max-w-4xl flex-1 px-4 py-8">
+            <p className="text-slate-500">Loading match…</p>
+          </main>
+        </>
+      }
+    >
+      <SpectatorMatchPageContent />
+    </Suspense>
+  );
+}
+
+function SpectatorMatchPageContent() {
   const { api, app, apiFetch } = useNamespacePaths();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const spectatorToken = searchParams.get("t");
   const matchId = params.id as string;
+  const spectatorQuery = useMemo(
+    () => (spectatorToken ? { t: spectatorToken } : undefined),
+    [spectatorToken]
+  );
   const [match, setMatch] = useState<Match | null>(null);
   const [courtSwapped, setCourtSwapped] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -84,7 +107,7 @@ export default function SpectatorMatchPage() {
   }, []);
 
   const loadMatch = useCallback(() => {
-    apiFetch(api(`/matches/${matchId}`))
+    apiFetch(api(`/matches/${matchId}`), undefined, spectatorQuery)
       .then((r) => {
         if (!r.ok) throw new Error("Match not found");
         return r.json();
@@ -92,7 +115,7 @@ export default function SpectatorMatchPage() {
       .then(applyMatch)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [matchId, applyMatch]);
+  }, [matchId, applyMatch, spectatorQuery, apiFetch, api]);
 
   useEffect(() => {
     loadMatch();
@@ -101,7 +124,7 @@ export default function SpectatorMatchPage() {
   useEffect(() => {
     if (!match || match.status !== "in_progress") return;
     const id = setInterval(() => {
-      apiFetch(api(`/matches/${matchId}`))
+      apiFetch(api(`/matches/${matchId}`), undefined, spectatorQuery)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (data) applyMatch(data);

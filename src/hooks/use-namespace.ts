@@ -20,6 +20,10 @@ export function useNamespacePaths() {
     app: (path = "") => namespaceAppPath(slug, path),
     /** Path under /api, e.g. api("/matches") → "/matches" for use with apiFetch. */
     api: (path = "") => apiResourcePath(path),
-    apiFetch: (path: string, init?: RequestInit) => namespaceFetch(slug, path, init),
+    apiFetch: (
+      path: string,
+      init?: RequestInit,
+      query?: Record<string, string | null | undefined>
+    ) => namespaceFetch(slug, path, init, query),
   };
 }

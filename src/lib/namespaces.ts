@@ -5,6 +5,7 @@ import {
   HAIKYU_NAMESPACE_SLUG,
   PUBLIC_NAMESPACE_SLUG,
 } from "./constants";
+import type { SpectatorAccess } from "./types";
 
 export {
   AUTO_JOIN_NAMESPACE_SLUG,
@@ -13,22 +14,39 @@ export {
   PUBLIC_NAMESPACE_SLUG,
 } from "./constants";
 
+export type { SpectatorAccess } from "./types";
+
 export interface Namespace {
   id: string;
   slug: string;
   name: string;
   description: string | null;
+  spectatorAccess: SpectatorAccess;
   createdAt: string;
 }
 
-function rowToNamespace(row: Record<string, unknown>): Namespace {
+function normalizeSpectatorAccess(value: unknown): SpectatorAccess {
+  if (value === "public" || value === "members" || value === "link") return value;
+  return "members";
+}
+
+export function namespaceFromRow(row: Record<string, unknown>): Namespace {
   return {
     id: row.id as string,
     slug: row.slug as string,
     name: row.name as string,
     description: (row.description as string | null) ?? null,
+    spectatorAccess: normalizeSpectatorAccess(row.spectator_access),
     createdAt: row.created_at as string,
   };
+}
+
+export function namespaceAllowsAnonymousSpectator(ns: Namespace): boolean {
+  return ns.spectatorAccess === "public";
+}
+
+export function namespaceRequiresSpectatorLink(ns: Namespace): boolean {
+  return ns.spectatorAccess === "link";
 }
 
 export function getAllNamespaces(): Namespace[] {
@@ -39,7 +57,7 @@ export function getAllNamespaces(): Namespace[] {
        ORDER BY CASE WHEN slug = ? THEN 0 ELSE 1 END, name`
     )
     .all(DEFAULT_NAMESPACE_SLUG) as Record<string, unknown>[];
-  return rows.map(rowToNamespace);
+  return rows.map(namespaceFromRow);
 }
 
 /** Hidden from the public home namespace directory (still reachable by direct URL). */
@@ -71,7 +89,7 @@ export function getNamespaceBySlug(slug: string): Namespace | null {
   const row = db
     .prepare("SELECT * FROM namespaces WHERE slug = ?")
     .get(slug) as Record<string, unknown> | undefined;
-  return row ? rowToNamespace(row) : null;
+  return row ? namespaceFromRow(row) : null;
 }
 
 export function getNamespaceById(id: string): Namespace | null {
@@ -79,7 +97,7 @@ export function getNamespaceById(id: string): Namespace | null {
   const row = db
     .prepare("SELECT * FROM namespaces WHERE id = ?")
     .get(id) as Record<string, unknown> | undefined;
-  return row ? rowToNamespace(row) : null;
+  return row ? namespaceFromRow(row) : null;
 }
 
 export function requireNamespaceBySlug(slug: string): Namespace {

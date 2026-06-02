@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
-import { isNamespaceError, resolveNamespaceFromRequest } from "@/lib/namespace-api";
 import { isMemberContextError, requireNamespaceMember } from "@/lib/namespace-access";
+import { applySpectatorMatchView } from "@/lib/spectator-match";
+import {
+  isSpectatorViewError,
+  resolveSpectatorMatchListAccess,
+} from "@/lib/spectator-access";
 import { createMatch, getAllMatches } from "@/lib/queries";
 import { CreateMatchInput } from "@/lib/types";
 
 export async function GET(request: Request) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
-  const matches = getAllMatches(nsOrErr.id);
+  const access = await resolveSpectatorMatchListAccess(request);
+  if (isSpectatorViewError(access)) return access;
+  const matches = getAllMatches(access.ns.id).map((m) =>
+    applySpectatorMatchView(m, access.redacted)
+  );
   return NextResponse.json(matches);
 }
 

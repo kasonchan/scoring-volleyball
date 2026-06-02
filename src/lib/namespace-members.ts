@@ -4,6 +4,7 @@ import {
   filterNamespacesForPublicDirectory,
   getAllNamespaces,
   getNamespaceBySlug,
+  namespaceFromRow,
   Namespace,
 } from "./namespaces";
 
@@ -16,11 +17,7 @@ function rowToNamespaceWithMembership(
   row: Record<string, unknown>
 ): NamespaceWithMembership {
   return {
-    id: row.id as string,
-    slug: row.slug as string,
-    name: row.name as string,
-    description: (row.description as string | null) ?? null,
-    createdAt: row.created_at as string,
+    ...namespaceFromRow(row),
     joined: Boolean(row.joined),
     joinedAt: (row.joined_at as string | null) ?? null,
   };
@@ -75,13 +72,7 @@ export function getJoinedNamespaces(userId: string): Namespace[] {
        ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`
     )
     .all(userId, AUTO_JOIN_NAMESPACE_SLUG) as Record<string, unknown>[];
-  return rows.map((row) => ({
-    id: row.id as string,
-    slug: row.slug as string,
-    name: row.name as string,
-    description: (row.description as string | null) ?? null,
-    createdAt: row.created_at as string,
-  }));
+  return rows.map((row) => namespaceFromRow(row));
 }
 
 export function listNamespacesWithMembership(
