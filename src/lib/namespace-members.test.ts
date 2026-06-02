@@ -38,6 +38,11 @@ describe("namespace-members", () => {
     expect(list.find((ns) => ns.slug === "haikyu")?.joined).toBe(true);
   });
 
+  it("includes the public namespace", () => {
+    const list = listNamespacesWithMembership(null);
+    expect(list.some((ns) => ns.slug === "public" && ns.name === "Public")).toBe(true);
+  });
+
   it("joinAllNamespaces joins every namespace", () => {
     const user = createUser({
       firstName: "Full",

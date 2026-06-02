@@ -2,12 +2,19 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
+import {
+  DEFAULT_NAMESPACE_SLUG,
+  HAIKYU_NAMESPACE_SLUG,
+  PUBLIC_NAMESPACE_SLUG,
+} from "./constants";
 import { generateUniqueHandle } from "./handle";
 
 const DEFAULT_NAMESPACE_NAME = "Global";
 const DEFAULT_NAMESPACE_DESCRIPTION =
   "Default volleyball league and tournament scoring.";
+const PUBLIC_NAMESPACE_NAME = "Public";
+const PUBLIC_NAMESPACE_DESCRIPTION =
+  "Open public volleyball league and tournament scoring.";
 const HAIKYU_NAMESPACE_NAME = "Haikyu";
 const HAIKYU_NAMESPACE_DESCRIPTION = "Haikyu volleyball league and tournament scoring.";
 
@@ -342,6 +349,13 @@ function migrateSchema(database: Database.Database) {
     HAIKYU_NAMESPACE_SLUG,
     HAIKYU_NAMESPACE_NAME,
     HAIKYU_NAMESPACE_DESCRIPTION
+  );
+
+  ensureNamespace(
+    database,
+    PUBLIC_NAMESPACE_SLUG,
+    PUBLIC_NAMESPACE_NAME,
+    PUBLIC_NAMESPACE_DESCRIPTION
   );
 
   let namespaceId = ensureNamespace(

@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 import { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
 
-export { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
+export { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG, PUBLIC_NAMESPACE_SLUG } from "./constants";
 
 export interface Namespace {
   id: string;

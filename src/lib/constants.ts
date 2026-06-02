@@ -1,6 +1,9 @@
 /** Default namespace slug; keep free of DB imports (used by next.config). */
 export const DEFAULT_NAMESPACE_SLUG = "global";
 
+/** Public namespace slug (open league / tournament scoring). */
+export const PUBLIC_NAMESPACE_SLUG = "public";
+
 /** Legacy Haikyu namespace slug (optional separate league). */
 export const HAIKYU_NAMESPACE_SLUG = "haikyu";
 
