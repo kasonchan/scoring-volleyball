@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { namespaceFetch } from "@/lib/namespace-fetch";
-import { apiPath, namespaceAppPath } from "@/lib/namespace-paths";
+import { apiResourcePath, namespaceAppPath } from "@/lib/namespace-paths";
 
 export function useNamespaceSlug(): string {
   const params = useParams();
@@ -18,7 +18,8 @@ export function useNamespacePaths() {
   return {
     slug,
     app: (path = "") => namespaceAppPath(slug, path),
-    api: (path = "") => apiPath(path),
+    /** Path under /api, e.g. api("/matches") → "/matches" for use with apiFetch. */
+    api: (path = "") => apiResourcePath(path),
     apiFetch: (path: string, init?: RequestInit) => namespaceFetch(slug, path, init),
   };
 }

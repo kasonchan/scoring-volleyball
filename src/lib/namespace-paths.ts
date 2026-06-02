@@ -5,8 +5,13 @@ export function namespaceAppPath(namespaceSlug: string, path = ""): string {
   return `/${namespaceSlug}${suffix}`;
 }
 
-/** API path without namespace segment (namespace is sent via X-Namespace-Slug header). */
+/** Resource path segment for API routes (e.g. "/matches"). */
+export function apiResourcePath(path = ""): string {
+  if (!path) return "";
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+/** Full API URL (namespace is sent via X-Namespace-Slug header, not in the path). */
 export function apiPath(path = ""): string {
-  const suffix = path.startsWith("/") ? path : path ? `/${path}` : "";
-  return `/api${suffix}`;
+  return `/api${apiResourcePath(path)}`;
 }
