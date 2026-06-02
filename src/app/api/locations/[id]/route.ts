@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isNamespaceError, resolveNamespaceFromRequest } from "@/lib/namespace-api";
+import { isMemberContextError, requireNamespaceMember } from "@/lib/namespace-access";
 import { deleteLocation, getLocation, updateLocation } from "@/lib/queries";
 import { LocationInput } from "@/lib/types";
 
@@ -7,10 +7,10 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const location = getLocation(id, nsOrErr.id);
+  const location = getLocation(id, ctxOrErr.ns.id);
   if (!location) {
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }
@@ -21,8 +21,8 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const { id } = await params;
     const body = (await request.json()) as LocationInput;
@@ -40,10 +40,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const location = getLocation(id, nsOrErr.id);
+  const location = getLocation(id, ctxOrErr.ns.id);
   if (!location) {
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isNamespaceError, resolveNamespaceFromRequest } from "@/lib/namespace-api";
+import { isMemberContextError, requireNamespaceMember } from "@/lib/namespace-access";
 import { createMatch, getAllMatches } from "@/lib/queries";
 import { CreateMatchInput } from "@/lib/types";
 
@@ -11,14 +12,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const body = (await request.json()) as CreateMatchInput;
     if (!body.homeTeamId || !body.awayTeamId) {
       return NextResponse.json({ error: "Both teams are required" }, { status: 400 });
     }
-    const match = createMatch(nsOrErr.id, body);
+    const match = createMatch(ctxOrErr.ns.id, body);
     return NextResponse.json(match, { status: 201 });
   } catch (error) {
     return NextResponse.json(

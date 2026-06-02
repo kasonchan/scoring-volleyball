@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isNamespaceError, resolveNamespaceFromRequest } from "@/lib/namespace-api";
+import { isMemberContextError, requireNamespaceMember } from "@/lib/namespace-access";
 import { deleteMatch, getMatch, updateMatch } from "@/lib/queries";
 import { UpdateMatchInput } from "@/lib/types";
 
@@ -21,15 +22,15 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const { id } = await params;
     const body = (await request.json()) as UpdateMatchInput;
     if (!body.homeTeamId || !body.awayTeamId) {
       return NextResponse.json({ error: "Both teams are required" }, { status: 400 });
     }
-    const match = updateMatch(nsOrErr.id, id, body);
+    const match = updateMatch(ctxOrErr.ns.id, id, body);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(
@@ -43,10 +44,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const match = getMatch(id, nsOrErr.id);
+  const match = getMatch(id, ctxOrErr.ns.id);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }

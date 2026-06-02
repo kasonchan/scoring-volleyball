@@ -1,25 +1,37 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/Nav";
+import { NamespaceJoinPrompt } from "@/components/NamespaceJoinPrompt";
 import { Card } from "@/components/ui";
 import { namespaceAppPath } from "@/lib/namespace-paths";
 import { getNamespaceBySlug } from "@/lib/namespaces";
 
 export default async function NamespaceHomePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ namespace: string }>;
+  searchParams: Promise<{ join?: string; next?: string }>;
 }) {
   const { namespace: slug } = await params;
+  const { join, next } = await searchParams;
   const ns = getNamespaceBySlug(slug);
   if (!ns) notFound();
 
   const base = namespaceAppPath(slug);
+  const showJoinPrompt = join === "1";
 
   return (
     <>
       <Nav namespaceSlug={slug} namespaceName={ns.name} />
       <main className="mx-auto max-w-6xl flex-1 px-4 py-12">
+        {showJoinPrompt ? (
+          <NamespaceJoinPrompt
+            namespaceSlug={slug}
+            namespaceName={ns.name}
+            returnTo={next}
+          />
+        ) : null}
         <div className="mb-12 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             {ns.name}

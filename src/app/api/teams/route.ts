@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { isNamespaceError, resolveNamespaceFromRequest } from "@/lib/namespace-api";
+import { isMemberContextError, requireNamespaceMember } from "@/lib/namespace-access";
 import { createTeam, getAllTeams } from "@/lib/queries";
 import { CreateTeamInput } from "@/lib/types";
 
 export async function GET(request: Request) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
-  const teams = getAllTeams(nsOrErr.id);
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
+  const teams = getAllTeams(ctxOrErr.ns.id);
   return NextResponse.json(teams);
 }
 
 export async function POST(request: Request) {
-  const nsOrErr = await resolveNamespaceFromRequest(request);
-  if (isNamespaceError(nsOrErr)) return nsOrErr;
+  const ctxOrErr = await requireNamespaceMember(request);
+  if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const body = (await request.json()) as CreateTeamInput;
     if (!body.name?.trim()) {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     if (!body.players?.length) {
       return NextResponse.json({ error: "At least one player is required" }, { status: 400 });
     }
-    const team = createTeam(nsOrErr.id, body);
+    const team = createTeam(ctxOrErr.ns.id, body);
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isMatchContextError, resolveNamespaceAndMatch } from "@/lib/namespace-api";
+import { isMemberMatchContextError, requireNamespaceMemberAndMatch } from "@/lib/namespace-access";
 import { substitutePlayer } from "@/lib/queries";
 import { SubstituteInput } from "@/lib/types";
 
@@ -7,8 +7,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await resolveNamespaceAndMatch(request, params);
-  if (isMatchContextError(ctx)) return ctx;
+  const ctx = await requireNamespaceMemberAndMatch(request, params);
+  if (isMemberMatchContextError(ctx)) return ctx;
   try {
     const { matchId } = ctx;
     const body = (await request.json()) as SubstituteInput;

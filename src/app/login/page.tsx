@@ -1,15 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { Nav } from "@/components/Nav";
 import { AuthField, AuthForm } from "@/components/AuthForm";
 import { Button, Card } from "@/components/ui";
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Nav />
+          <main className="mx-auto max-w-md flex-1 px-4 py-12">
+            <p className="text-center text-slate-500">Loading…</p>
+          </main>
+        </>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
   const { setUser } = useAuth();
   const [tokenSent, setTokenSent] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -49,7 +68,9 @@ export default function LoginPage() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Login failed");
     if (data.user) setUser(data.user);
-    router.push("/");
+    const destination =
+      nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+    router.push(destination);
     router.refresh();
   }
 
@@ -104,3 +125,4 @@ export default function LoginPage() {
     </>
   );
 }
+
