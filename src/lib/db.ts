@@ -2,12 +2,14 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import { DEFAULT_NAMESPACE_SLUG } from "./constants";
+import { DEFAULT_NAMESPACE_SLUG, HAIKYU_NAMESPACE_SLUG } from "./constants";
 import { generateUniqueHandle } from "./handle";
 
-const DEFAULT_NAMESPACE_NAME = "Public";
+const DEFAULT_NAMESPACE_NAME = "Global";
 const DEFAULT_NAMESPACE_DESCRIPTION =
   "Default volleyball league and tournament scoring.";
+const HAIKYU_NAMESPACE_NAME = "Haikyu";
+const HAIKYU_NAMESPACE_DESCRIPTION = "Haikyu volleyball league and tournament scoring.";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -333,6 +335,15 @@ function migrateSchema(database: Database.Database) {
     );
   }
 
+  migratePublicNamespaceToGlobal(database);
+
+  ensureNamespace(
+    database,
+    HAIKYU_NAMESPACE_SLUG,
+    HAIKYU_NAMESPACE_NAME,
+    HAIKYU_NAMESPACE_DESCRIPTION
+  );
+
   let namespaceId = ensureNamespace(
     database,
     DEFAULT_NAMESPACE_SLUG,
@@ -348,6 +359,53 @@ function migrateSchema(database: Database.Database) {
 
   migrateUsersTable(database);
   migrateLoginTokensTable(database);
+  migrateNamespaceMembersTable(database, namespaceId);
+}
+
+function migrateNamespaceMembersTable(database: Database.Database, globalNamespaceId: string) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS namespace_members (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      namespace_id TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+      joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, namespace_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_namespace_members_user ON namespace_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_namespace_members_namespace ON namespace_members(namespace_id);
+  `);
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO namespace_members (user_id, namespace_id)
+       SELECT u.id, ? FROM users u`
+    )
+    .run(globalNamespaceId);
+}
+
+/** Rename legacy default slug `public` → `global` without losing data. */
+function migratePublicNamespaceToGlobal(database: Database.Database) {
+  const publicNs = database
+    .prepare("SELECT id FROM namespaces WHERE slug = ?")
+    .get("public") as { id: string } | undefined;
+  if (!publicNs) return;
+
+  const globalNs = database
+    .prepare("SELECT id FROM namespaces WHERE slug = ?")
+    .get("global") as { id: string } | undefined;
+
+  if (globalNs) {
+    database.prepare("UPDATE teams SET namespace_id = ? WHERE namespace_id = ?").run(globalNs.id, publicNs.id);
+    database
+      .prepare("UPDATE locations SET namespace_id = ? WHERE namespace_id = ?")
+      .run(globalNs.id, publicNs.id);
+    database
+      .prepare("UPDATE matches SET namespace_id = ? WHERE namespace_id = ?")
+      .run(globalNs.id, publicNs.id);
+    database.prepare("DELETE FROM namespaces WHERE slug = ?").run("public");
+  } else {
+    database
+      .prepare("UPDATE namespaces SET slug = ?, name = ? WHERE slug = ?")
+      .run("global", DEFAULT_NAMESPACE_NAME, "public");
+  }
 }
 
 function ensureNamespace(

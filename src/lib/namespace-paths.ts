@@ -1,4 +1,4 @@
-/** URL helpers for multi-tenant namespaces (e.g. /public/admin). */
+/** URL helpers for multi-tenant namespaces (e.g. /global/admin). */
 
 export function namespaceAppPath(namespaceSlug: string, path = ""): string {
   const suffix = path.startsWith("/") ? path : path ? `/${path}` : "";

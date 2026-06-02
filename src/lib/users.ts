@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getDb, usersTableHasColumn } from "./db";
 import { resolveProfileHandle, resolveSignupHandle } from "./handle";
+import { ensureGlobalMembership } from "./namespace-members";
 
 /** Legacy column placeholder; auth uses email tokens only. */
 export const UNUSED_PASSWORD_HASH = "email-token-only";
@@ -99,6 +100,7 @@ export function createUser(input: SignupInput): PublicUser {
 
   const user = getUserById(id);
   if (!user) throw new Error("Failed to create user");
+  ensureGlobalMembership(user.id);
   return user;
 }
 

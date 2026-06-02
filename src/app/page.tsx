@@ -1,17 +1,13 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { Card } from "@/components/ui";
+import { NamespaceDirectory } from "@/components/NamespaceDirectory";
 import { namespaceAppPath } from "@/lib/namespace-paths";
-import {
-  DEFAULT_NAMESPACE_SLUG,
-  getDefaultNamespace,
-  getNamespacesForHomepage,
-} from "@/lib/namespaces";
+import { DEFAULT_NAMESPACE_SLUG, getDefaultNamespace } from "@/lib/namespaces";
 
 export const dynamic = "force-dynamic";
 
 export default function Home() {
-  const namespaces = getNamespacesForHomepage();
   const defaultNamespace = getDefaultNamespace();
   const defaultHref = namespaceAppPath(DEFAULT_NAMESPACE_SLUG);
 
@@ -80,38 +76,7 @@ export default function Home() {
 
         <section>
           <h2 className="mb-6 text-center text-2xl font-semibold text-slate-900">Namespaces</h2>
-          {namespaces.length === 0 ? (
-            <p className="text-center text-slate-500">No namespaces configured yet.</p>
-          ) : (
-            <div className="mx-auto grid max-w-3xl gap-4">
-              {namespaces.map((ns) => (
-                <Link key={ns.id} href={namespaceAppPath(ns.slug)} className="group">
-                  <Card className="transition-shadow hover:shadow-md">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <h3 className="text-xl font-semibold text-slate-900 group-hover:text-orange-600">
-                          {ns.name}
-                          {ns.slug === DEFAULT_NAMESPACE_SLUG ? (
-                            <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                              Default
-                            </span>
-                          ) : null}
-                        </h3>
-                        {ns.description ? (
-                          <p className="mt-1 text-slate-600">{ns.description}</p>
-                        ) : (
-                          <p className="mt-1 text-slate-500">/{ns.slug}</p>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-orange-600 group-hover:translate-x-0.5 transition-transform">
-                        →
-                      </span>
-                    </div>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
+          <NamespaceDirectory />
         </section>
       </main>
     </>

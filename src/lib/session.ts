@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { syncUserNamespaceMembership } from "./namespace-members";
 import { getUserById, PublicUser } from "./users";
 
 export const SESSION_COOKIE = "vb_session";
@@ -71,5 +72,7 @@ export async function getSessionUser(): Promise<PublicUser | null> {
   if (!token) return null;
   const session = verifySessionToken(token);
   if (!session) return null;
-  return getUserById(session.userId);
+  const user = getUserById(session.userId);
+  if (user) syncUserNamespaceMembership(user.id);
+  return user;
 }
