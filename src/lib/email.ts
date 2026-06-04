@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import type { LoginTokenPurpose } from "./login-token";
 
 export type LoginTokenEmailPayload = {
@@ -57,24 +58,54 @@ function buildMessage(payload: LoginTokenEmailPayload): { subject: string; text:
   return { subject, text };
 }
 
-async function sendViaResend(to: string, subject: string, text: string): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) return false;
+type SmtpConfig = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  from: string;
+};
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from, to: [to], subject, text }),
+function getSmtpConfig(): SmtpConfig | null {
+  const from = process.env.EMAIL_FROM?.trim();
+  const user = process.env.SMTP_USER?.trim() ?? process.env.GMAIL_USER?.trim();
+  const pass =
+    process.env.SMTP_PASS?.trim() ??
+    process.env.SMTP_APP_PASSWORD?.trim() ??
+    process.env.GMAIL_APP_PASSWORD?.trim();
+
+  if (!from || !user || !pass) return null;
+
+  const host =
+    process.env.SMTP_HOST?.trim() ??
+    (user.toLowerCase().endsWith("@gmail.com") ? "smtp.gmail.com" : "");
+  if (!host) return null;
+
+  const port = Number(process.env.SMTP_PORT ?? "587");
+  const secure =
+    process.env.SMTP_SECURE === "true" || (process.env.SMTP_SECURE !== "false" && port === 465);
+
+  return { host, port, secure, user, pass, from };
+}
+
+async function sendViaSmtp(to: string, subject: string, text: string): Promise<boolean> {
+  const config = getSmtpConfig();
+  if (!config) return false;
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Failed to send email (${res.status}): ${body}`);
-  }
+  await transporter.sendMail({
+    from: config.from,
+    to,
+    subject,
+    text,
+  });
   return true;
 }
 
@@ -92,11 +123,16 @@ export async function sendLoginTokenEmail(
 
   const { subject, text } = buildMessage(payload);
 
-  if (await sendViaResend(to, subject, text)) return;
+  try {
+    if (await sendViaSmtp(to, subject, text)) return;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to send email: ${message}`);
+  }
 
   if (process.env.NODE_ENV === "production") {
     console.warn(
-      "[auth-email] RESEND_API_KEY and EMAIL_FROM are not set; login token was not emailed."
+      "[auth-email] SMTP is not configured (EMAIL_FROM, SMTP_USER, SMTP_PASS); login token was not emailed."
     );
   }
 
