@@ -61,11 +61,7 @@ export function TeamRosterList({
                   >
                     {p.jerseyNumber}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {playerCourtNameLine(p) || (
-                      <span className="italic text-slate-400">—</span>
-                    )}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate">{playerCourtNameLine(p)}</span>
                   {!compact && p.role && (
                     <span className="hidden shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-600 sm:inline">
                       {PLAYER_ROLE_LABELS[p.role]}

@@ -30,6 +30,10 @@ export async function resolveSpectatorMatchListAccess(
   if (isNamespaceError(nsOrErr)) return nsOrErr;
 
   if (namespaceAllowsAnonymousSpectator(nsOrErr)) {
+    const memberOrErr = await requireNamespaceMember(request);
+    if (!isMemberContextError(memberOrErr)) {
+      return { ns: memberOrErr.ns, redacted: false };
+    }
     return { ns: nsOrErr, redacted: true };
   }
 
@@ -47,6 +51,10 @@ export async function resolveSpectatorMatchReadAccess(
   if (isNamespaceError(nsOrErr)) return nsOrErr;
 
   if (namespaceAllowsAnonymousSpectator(nsOrErr)) {
+    const memberOrErr = await requireNamespaceMember(request);
+    if (!isMemberContextError(memberOrErr)) {
+      return { ns: memberOrErr.ns, redacted: false };
+    }
     return { ns: nsOrErr, redacted: true };
   }
 

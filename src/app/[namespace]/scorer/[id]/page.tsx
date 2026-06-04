@@ -293,11 +293,7 @@ function RotationSetup({
                     className="rounded border-violet-300 text-violet-600 focus:ring-orange-500"
                   />
                   <span className="font-medium">{playerJerseyLabel(p.jerseyNumber)}</span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {playerCourtNameLine(p) || (
-                      <span className="italic text-slate-400">—</span>
-                    )}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate">{playerCourtNameLine(p)}</span>
                   {p.role === "libero" && (
                     <span className="shrink-0 text-xs text-violet-600">Roster Libero</span>
                   )}
@@ -471,11 +467,7 @@ function LiberoInModal({
               >
                 <span className="font-medium text-slate-500">P{option.position}</span>
                 <span className="font-medium">{playerJerseyLabel(option.player.jerseyNumber)}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {playerCourtNameLine(option.player) || (
-                    <span className="italic text-slate-400">—</span>
-                  )}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{playerCourtNameLine(option.player)}</span>
               </button>
             ))}
           </div>
@@ -549,11 +541,7 @@ function LiberoOutModal({
           <div className="flex items-center gap-2 text-slate-700">
             <span className="font-medium text-slate-500">P4 out</span>
             <span className="font-medium">{playerJerseyLabel(libero.jerseyNumber)}</span>
-            <span className="truncate">
-              {playerCourtNameLine(libero) || (
-                <span className="italic text-slate-400">—</span>
-              )}
-            </span>
+            <span className="truncate">{playerCourtNameLine(libero)}</span>
             <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">
               L
             </span>
@@ -562,11 +550,7 @@ function LiberoOutModal({
           <div className="flex items-center gap-2 text-slate-700">
             <span className="font-medium text-slate-500">P4 in</span>
             <span className="font-medium">{playerJerseyLabel(player.jerseyNumber)}</span>
-            <span className="truncate">
-              {playerCourtNameLine(player) || (
-                <span className="italic text-slate-400">—</span>
-              )}
-            </span>
+            <span className="truncate">{playerCourtNameLine(player)}</span>
           </div>
         </div>
         <div className="mt-6 flex flex-wrap gap-2">
@@ -1685,7 +1669,7 @@ export default function MatchScorerPage() {
           )}
         </div>
 
-        {needsRotation && match.status === "scheduled" ? (
+        {needsRotation ? (
           <RotationSetup
             match={match}
             onComplete={applyMatch}
