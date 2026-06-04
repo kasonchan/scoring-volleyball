@@ -3,7 +3,8 @@ import type { Match, Player } from "@/lib/types";
 function redactPlayer(player: Player): Player {
   return {
     ...player,
-    name: `#${player.jerseyNumber}`,
+    /** Cleared for display; court UI shows jersey from jerseyNumber. */
+    name: "",
   };
 }
 

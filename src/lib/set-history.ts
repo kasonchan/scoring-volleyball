@@ -1,11 +1,17 @@
+import { playerOptionLabel } from "@/lib/player-display";
 import {
   LiberoReplacement,
+  Player,
   Rally,
   ScoreEvent,
   Substitution,
   Timeout,
   formatRallyTime,
 } from "./types";
+
+function historyPlayerLabel(player: Player | undefined): string {
+  return player ? playerOptionLabel(player) : "—";
+}
 
 export type SetHistoryEventKind =
   | "rally_start"
@@ -80,7 +86,7 @@ export function buildSetHistoryEvents(input: {
       kind: "substitution",
       createdAt: sub.createdAt,
       teamId: sub.teamId,
-      summary: `P${sub.position}: #${sub.playerOut?.jerseyNumber} ${sub.playerOut?.name} → #${sub.playerIn?.jerseyNumber} ${sub.playerIn?.name}`,
+      summary: `P${sub.position}: ${historyPlayerLabel(sub.playerOut)} → ${historyPlayerLabel(sub.playerIn)}`,
     });
   }
 
@@ -100,7 +106,7 @@ export function buildSetHistoryEvents(input: {
       kind: entry.eventType === "in" ? "libero_in" : "libero_out",
       createdAt: entry.createdAt,
       teamId: entry.teamId,
-      summary: `P${entry.position}: #${entry.libero?.jerseyNumber} ${entry.libero?.name} ↔ #${entry.player?.jerseyNumber} ${entry.player?.name}`,
+      summary: `P${entry.position}: ${historyPlayerLabel(entry.libero)} ↔ ${historyPlayerLabel(entry.player)}`,
     });
   }
 

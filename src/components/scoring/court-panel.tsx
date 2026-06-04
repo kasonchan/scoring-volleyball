@@ -7,6 +7,7 @@ import {
   isLiberoPlayer,
   liberoInPositionLabel,
 } from "@/lib/libero";
+import { playerCourtNameLine, playerJerseyLabel } from "@/lib/player-display";
 import {
   LiberoReplacement,
   Match,
@@ -60,7 +61,11 @@ export function TeamRosterList({
                   >
                     {p.jerseyNumber}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {playerCourtNameLine(p) || (
+                      <span className="italic text-slate-400">—</span>
+                    )}
+                  </span>
                   {!compact && p.role && (
                     <span className="hidden shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-600 sm:inline">
                       {PLAYER_ROLE_LABELS[p.role]}
@@ -282,10 +287,12 @@ export function CourtPanel({
                 </div>
               </div>
               <div className={`font-bold text-slate-900 ${ultraCompact ? "text-xs leading-none" : ""}`}>
-                {entry?.player ? `#${entry.player.jerseyNumber}` : "—"}
+                {entry?.player ? playerJerseyLabel(entry.player.jerseyNumber) : "—"}
               </div>
-              {!ultraCompact && (
-                <div className="truncate text-xs text-slate-600">{entry?.player?.name ?? ""}</div>
+              {!ultraCompact && playerCourtNameLine(entry?.player) && (
+                <div className="truncate text-xs text-slate-600">
+                  {playerCourtNameLine(entry?.player)}
+                </div>
               )}
             </div>
           );
