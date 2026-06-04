@@ -25,6 +25,7 @@ describe("player-display", () => {
   it("playerCourtNameLine hides redundant labels", () => {
     expect(playerCourtNameLine(player("#12", 12))).toBe("");
     expect(playerCourtNameLine(player("Sam", 12))).toBe("Sam");
+    expect(playerCourtNameLine({ ...player("ignored", 3), name: "" })).toBe("");
   });
 
   it("playerOptionLabel avoids duplicate jersey prefixes", () => {

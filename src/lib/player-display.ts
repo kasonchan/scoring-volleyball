@@ -1,8 +1,8 @@
 import type { Player } from "@/lib/types";
 
 /** True when the stored name adds no info beyond the jersey number. */
-export function isJerseyOnlyDisplayName(name: string, jerseyNumber: number): boolean {
-  const trimmed = name.trim();
+export function isJerseyOnlyDisplayName(name: string | null | undefined, jerseyNumber: number): boolean {
+  const trimmed = (name ?? "").trim();
   if (!trimmed) return true;
   if (trimmed === String(jerseyNumber)) return true;
   if (trimmed === `#${jerseyNumber}`) return true;

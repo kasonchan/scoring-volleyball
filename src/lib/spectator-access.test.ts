@@ -52,6 +52,37 @@ describe("spectator match access", () => {
     expect(matches[0].homeTeam.players[0].jerseyNumber).toBe(3);
   });
 
+  it("public namespace returns full names for signed-in members", async () => {
+    const ns = getNamespaceBySlug("public")!;
+    const user = createUser({
+      firstName: "Scorer",
+      lastName: "Member",
+      email: "scorer-public@example.com",
+    });
+    joinNamespace(user.id, "public");
+
+    const home = createTeam(ns.id, {
+      name: "Pub Home",
+      players: [{ name: "Visible Player", jerseyNumber: 5, role: null }],
+    });
+    const away = createTeam(ns.id, {
+      name: "Pub Away",
+      players: [{ name: "Other", jerseyNumber: 6, role: null }],
+    });
+    const match = createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
+
+    const { createSessionToken } = await import("@/lib/session");
+    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
+
+    const { GET } = await import("@/app/api/matches/[id]/route");
+    const res = await GET(request(`/api/matches/${match.id}`, "public"), {
+      params: Promise.resolve({ id: match.id }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.homeTeam.players[0].name).toBe("Visible Player");
+  });
+
   it("haikyu namespace blocks unauthenticated match list", async () => {
     const { GET } = await import("@/app/api/matches/route");
     const res = await GET(request("/api/matches", "haikyu"));
