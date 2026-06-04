@@ -48,7 +48,8 @@ describe("spectator match access", () => {
     const res = await GET(request("/api/matches", "public"));
     expect(res.status).toBe(200);
     const matches = await res.json();
-    expect(matches[0].homeTeam.players[0].name).toBe("#3");
+    expect(matches[0].homeTeam.players[0].name).toBe("");
+    expect(matches[0].homeTeam.players[0].jerseyNumber).toBe(3);
   });
 
   it("haikyu namespace blocks unauthenticated match list", async () => {
@@ -95,7 +96,8 @@ describe("spectator match access", () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.homeTeam.players[0].name).toBe("#10");
+    expect(body.homeTeam.players[0].name).toBe("");
+    expect(body.homeTeam.players[0].jerseyNumber).toBe(10);
   });
 
   it("members namespace requires login for match read", async () => {

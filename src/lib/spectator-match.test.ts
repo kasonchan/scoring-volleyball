@@ -3,7 +3,7 @@ import { redactMatchForSpectator } from "@/lib/spectator-match";
 import type { Match } from "@/lib/types";
 
 describe("spectator-match", () => {
-  it("redactMatchForSpectator replaces player names with jersey labels", () => {
+  it("redactMatchForSpectator clears player names for privacy", () => {
     const match: Match = {
       id: "m1",
       namespaceId: "ns1",
@@ -36,8 +36,9 @@ describe("spectator-match", () => {
     };
 
     const redacted = redactMatchForSpectator(match);
-    expect(redacted.homeTeam?.players?.[0]?.name).toBe("#7");
-    expect(redacted.rotations?.[0]?.player?.name).toBe("#7");
+    expect(redacted.homeTeam?.players?.[0]?.name).toBe("");
+    expect(redacted.rotations?.[0]?.player?.name).toBe("");
+    expect(redacted.homeTeam?.players?.[0]?.jerseyNumber).toBe(7);
     expect(redacted.homeTeam?.name).toBe("Eagles");
   });
 });

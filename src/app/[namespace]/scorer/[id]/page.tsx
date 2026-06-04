@@ -32,6 +32,11 @@ import {
   type LiberoInOption,
 } from "@/lib/libero";
 import { isRallyInProgress, needsRallyStart as matchNeedsRallyStart } from "@/lib/rally";
+import {
+  playerCourtNameLine,
+  playerJerseyLabel,
+  playerOptionLabel,
+} from "@/lib/player-display";
 import { Match, Player, ServingTeam, Substitution, Timeout, LiberoReplacement, formatMatchDateTime, formatRallyTime, getMatchSummary, MAX_TIMEOUTS_PER_SET, TIMEOUT_SECONDS } from "@/lib/types";
 
 const SCORER_COMPACT_MODE_KEY = "scorer-compact-mode";
@@ -231,7 +236,7 @@ function RotationSetup({
                     const usedElsewhere = rotation.includes(p.id) && rotation[i] !== p.id;
                     return (
                       <option key={p.id} value={p.id} disabled={usedElsewhere}>
-                        #{p.jerseyNumber} {p.name}
+                        {playerOptionLabel(p)}
                       </option>
                     );
                   })}
@@ -255,7 +260,7 @@ function RotationSetup({
                 .sort((a, b) => a.jerseyNumber - b.jerseyNumber)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    #{p.jerseyNumber} {p.name}
+                    {playerOptionLabel(p)}
                   </option>
                 ))}
             </select>
@@ -287,8 +292,12 @@ function RotationSetup({
                     }}
                     className="rounded border-violet-300 text-violet-600 focus:ring-orange-500"
                   />
-                  <span className="font-medium">#{p.jerseyNumber}</span>
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  <span className="font-medium">{playerJerseyLabel(p.jerseyNumber)}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {playerCourtNameLine(p) || (
+                      <span className="italic text-slate-400">—</span>
+                    )}
+                  </span>
                   {p.role === "libero" && (
                     <span className="shrink-0 text-xs text-violet-600">Roster Libero</span>
                   )}
@@ -461,8 +470,12 @@ function LiberoInModal({
                 }`}
               >
                 <span className="font-medium text-slate-500">P{option.position}</span>
-                <span className="font-medium">#{option.player.jerseyNumber}</span>
-                <span className="min-w-0 flex-1 truncate">{option.player.name}</span>
+                <span className="font-medium">{playerJerseyLabel(option.player.jerseyNumber)}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {playerCourtNameLine(option.player) || (
+                    <span className="italic text-slate-400">—</span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -535,8 +548,12 @@ function LiberoOutModal({
         <div className="mt-4 space-y-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm">
           <div className="flex items-center gap-2 text-slate-700">
             <span className="font-medium text-slate-500">P4 out</span>
-            <span className="font-medium">#{libero.jerseyNumber}</span>
-            <span className="truncate">{libero.name}</span>
+            <span className="font-medium">{playerJerseyLabel(libero.jerseyNumber)}</span>
+            <span className="truncate">
+              {playerCourtNameLine(libero) || (
+                <span className="italic text-slate-400">—</span>
+              )}
+            </span>
             <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800">
               L
             </span>
@@ -544,8 +561,12 @@ function LiberoOutModal({
           <div className="text-center text-slate-400">↓</div>
           <div className="flex items-center gap-2 text-slate-700">
             <span className="font-medium text-slate-500">P4 in</span>
-            <span className="font-medium">#{player.jerseyNumber}</span>
-            <span className="truncate">{player.name}</span>
+            <span className="font-medium">{playerJerseyLabel(player.jerseyNumber)}</span>
+            <span className="truncate">
+              {playerCourtNameLine(player) || (
+                <span className="italic text-slate-400">—</span>
+              )}
+            </span>
           </div>
         </div>
         <div className="mt-6 flex flex-wrap gap-2">
@@ -667,9 +688,13 @@ function SubstitutionCourtGrid({
                 )}
               </div>
               <div className="font-bold text-slate-900">
-                {displayPlayer ? `#${displayPlayer.jerseyNumber}` : "—"}
+                {displayPlayer ? playerJerseyLabel(displayPlayer.jerseyNumber) : "—"}
               </div>
-              <div className="truncate text-xs text-slate-600">{displayPlayer?.name ?? ""}</div>
+              {playerCourtNameLine(displayPlayer) && (
+                <div className="truncate text-xs text-slate-600">
+                  {playerCourtNameLine(displayPlayer)}
+                </div>
+              )}
               {isPreview && (
                 <div className="mt-0.5 text-[10px] font-medium text-emerald-700">Sub in</div>
               )}
@@ -781,7 +806,7 @@ function SubstitutionModal({
           {currentPlayer && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
-                Substitute in for #{currentPlayer.jerseyNumber} {currentPlayer.name}
+                Substitute in for {playerOptionLabel(currentPlayer)}
               </label>
               {allowedBench.length === 0 ? (
                 <p className="text-sm text-slate-500">
@@ -818,7 +843,7 @@ function SubstitutionModal({
               )}
               {allowedBench.length === 1 && (
                 <p className="mt-1 text-xs text-slate-500">
-                  Only #{allowedBench[0].jerseyNumber} {allowedBench[0].name} can sub for this player.
+                  Only {playerOptionLabel(allowedBench[0])} can sub for this player.
                 </p>
               )}
             </div>
@@ -839,7 +864,7 @@ function SubstitutionModal({
                   if (!player) return null;
                   return (
                     <option key={id} value={id}>
-                      #{player.jerseyNumber} {player.name}
+                      {playerOptionLabel(player)}
                     </option>
                   );
                 })}
