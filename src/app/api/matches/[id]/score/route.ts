@@ -15,7 +15,7 @@ export async function POST(
     if (body.team !== "home" && body.team !== "away") {
       return NextResponse.json({ error: "Team must be 'home' or 'away'" }, { status: 400 });
     }
-    const match = scorePoint(matchId, body.team);
+    const match = await scorePoint(matchId, body.team);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(

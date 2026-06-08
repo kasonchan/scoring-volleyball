@@ -14,7 +14,7 @@ export async function POST(
     if (typeof body.courtSwapped !== "boolean") {
       return NextResponse.json({ error: "courtSwapped is required" }, { status: 400 });
     }
-    const match = setSetCourtSwapped(matchId, body.courtSwapped);
+    const match = await setSetCourtSwapped(matchId, body.courtSwapped);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(

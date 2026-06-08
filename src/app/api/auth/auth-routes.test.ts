@@ -438,6 +438,6 @@ describe("auth API routes", () => {
     expect(res.status).toBe(201);
     lastEmail = null;
     const { getUserByEmail } = await import("@/lib/users");
-    expect(getUserByEmail("honeypot@example.com")).toBeNull();
+    expect(await getUserByEmail("honeypot@example.com")).toBeNull();
   });
 });

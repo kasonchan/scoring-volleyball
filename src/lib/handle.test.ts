@@ -6,7 +6,7 @@ import {
   normalizeHandle,
   resolveSignupHandle,
 } from "@/lib/handle";
-import { getDb } from "@/lib/db";
+import { execute } from "@/lib/db";
 import { UNUSED_PASSWORD_HASH } from "@/lib/users";
 import { setupTestDatabase } from "@/test/test-db";
 
@@ -32,8 +32,8 @@ describe("handle (no database)", () => {
 describe("handle (database)", () => {
   setupTestDatabase();
 
-  it("auto-generates a unique handle when optional handle is omitted", () => {
-    const result = resolveSignupHandle("Alice", "Smith");
+  it("auto-generates a unique handle when optional handle is omitted", async () => {
+    const result = await resolveSignupHandle("Alice", "Smith");
     expect("handle" in result).toBe(true);
     if ("handle" in result) {
       expect(isValidHandle(result.handle)).toBe(true);
@@ -41,23 +41,23 @@ describe("handle (database)", () => {
     }
   });
 
-  it("rejects duplicate custom handles", () => {
-    const db = getDb();
-    db.prepare(
-      "INSERT INTO users (id, first_name, last_name, email, handle, password_hash) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run("u1", "Bob", "Lee", "bob@example.com", "bob_lee", UNUSED_PASSWORD_HASH);
+  it("rejects duplicate custom handles", async () => {
+    await execute(
+      "INSERT INTO users (id, first_name, last_name, email, handle, password_hash) VALUES (?, ?, ?, ?, ?, ?)",
+      ["u1", "Bob", "Lee", "bob@example.com", "bob_lee", UNUSED_PASSWORD_HASH]
+    );
 
-    const second = resolveSignupHandle("Other", "Person", "bob_lee");
+    const second = await resolveSignupHandle("Other", "Person", "bob_lee");
     expect(second).toEqual({ error: "That handle is already taken." });
   });
 
-  it("generateUniqueHandle appends suffix when base is taken", () => {
-    const db = getDb();
-    db.prepare(
-      "INSERT INTO users (id, first_name, last_name, email, handle, password_hash) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run("u1", "Jane", "Doe", "jane@example.com", "jane_doe", UNUSED_PASSWORD_HASH);
+  it("generateUniqueHandle appends suffix when base is taken", async () => {
+    await execute(
+      "INSERT INTO users (id, first_name, last_name, email, handle, password_hash) VALUES (?, ?, ?, ?, ?, ?)",
+      ["u1", "Jane", "Doe", "jane@example.com", "jane_doe", UNUSED_PASSWORD_HASH]
+    );
 
-    const handle = generateUniqueHandle("Jane", "Doe");
+    const handle = await generateUniqueHandle("Jane", "Doe");
     expect(handle).not.toBe("jane_doe");
     expect(isValidHandle(handle)).toBe(true);
   });

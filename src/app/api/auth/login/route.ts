@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = verifyAndConsumeLoginToken(body.email, body.token);
+    const user = await verifyAndConsumeLoginToken(body.email, body.token);
     if (!user) {
       return NextResponse.json(
         { error: "Invalid or expired login token" },

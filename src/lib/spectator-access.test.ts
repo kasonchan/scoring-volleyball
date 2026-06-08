@@ -33,16 +33,16 @@ describe("spectator match access", () => {
   }
 
   it("public namespace returns redacted matches without session", async () => {
-    const ns = getNamespaceBySlug("public")!;
-    const home = createTeam(ns.id, {
+    const ns = (await getNamespaceBySlug("public"))!;
+    const home = await createTeam(ns.id, {
       name: "Pub Home",
       players: [{ name: "Secret Player", jerseyNumber: 3, role: null }],
     });
-    const away = createTeam(ns.id, {
+    const away = await createTeam(ns.id, {
       name: "Pub Away",
       players: [{ name: "Other", jerseyNumber: 4, role: null }],
     });
-    createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
+    await createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
 
     const { GET } = await import("@/app/api/matches/route");
     const res = await GET(request("/api/matches", "public"));
@@ -53,23 +53,23 @@ describe("spectator match access", () => {
   });
 
   it("public namespace returns full names for signed-in members", async () => {
-    const ns = getNamespaceBySlug("public")!;
-    const user = createUser({
+    const ns = (await getNamespaceBySlug("public"))!;
+    const user = await createUser({
       firstName: "Scorer",
       lastName: "Member",
       email: "scorer-public@example.com",
     });
-    joinNamespace(user.id, "public");
+    await joinNamespace(user.id, "public");
 
-    const home = createTeam(ns.id, {
+    const home = await createTeam(ns.id, {
       name: "Pub Home",
       players: [{ name: "Visible Player", jerseyNumber: 5, role: null }],
     });
-    const away = createTeam(ns.id, {
+    const away = await createTeam(ns.id, {
       name: "Pub Away",
       players: [{ name: "Other", jerseyNumber: 6, role: null }],
     });
-    const match = createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
+    const match = await createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
 
     const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
@@ -90,23 +90,23 @@ describe("spectator match access", () => {
   });
 
   it("haikyu allows match read with spectator token", async () => {
-    const ns = getNamespaceBySlug("haikyu")!;
-    const user = createUser({
+    const ns = (await getNamespaceBySlug("haikyu"))!;
+    const user = await createUser({
       firstName: "Link",
       lastName: "Viewer",
       email: "linkviewer@example.com",
     });
-    joinNamespace(user.id, "haikyu");
+    await joinNamespace(user.id, "haikyu");
 
-    const home = createTeam(ns.id, {
+    const home = await createTeam(ns.id, {
       name: "Crows",
       players: [{ name: "Hidden Name", jerseyNumber: 10, role: null }],
     });
-    const away = createTeam(ns.id, {
+    const away = await createTeam(ns.id, {
       name: "Cats",
       players: [{ name: "Other", jerseyNumber: 11, role: null }],
     });
-    const match = createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
+    const match = await createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
 
     const { GET: linkGet } = await import("@/app/api/matches/[id]/spectator-link/route");
     const { createSessionToken } = await import("@/lib/session");
@@ -132,16 +132,16 @@ describe("spectator match access", () => {
   });
 
   it("members namespace requires login for match read", async () => {
-    const ns = getNamespaceBySlug("global")!;
-    const home = createTeam(ns.id, {
+    const ns = (await getNamespaceBySlug("global"))!;
+    const home = await createTeam(ns.id, {
       name: "G1",
       players: [{ name: "X", jerseyNumber: 1, role: null }],
     });
-    const away = createTeam(ns.id, {
+    const away = await createTeam(ns.id, {
       name: "G2",
       players: [{ name: "Y", jerseyNumber: 2, role: null }],
     });
-    const match = createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
+    const match = await createMatch(ns.id, { homeTeamId: home.id, awayTeamId: away.id });
 
     const { GET } = await import("@/app/api/matches/[id]/route");
     const res = await GET(request(`/api/matches/${match.id}`, "global"), {

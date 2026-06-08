@@ -49,12 +49,12 @@ describe("namespace-access", () => {
   });
 
   it("allows member POST /api/teams", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Staff",
       lastName: "User",
       email: "staff@example.com",
     });
-    joinNamespace(user.id, "public");
+    await joinNamespace(user.id, "public");
 
     const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
@@ -77,13 +77,13 @@ describe("namespace-access", () => {
   });
 
   it("PUT /api/teams/:id rejects cross-namespace updates", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Cross",
       lastName: "Ns",
       email: "crossns@example.com",
     });
-    joinNamespace(user.id, "public");
-    joinNamespace(user.id, "haikyu");
+    await joinNamespace(user.id, "public");
+    await joinNamespace(user.id, "haikyu");
 
     const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
@@ -131,12 +131,12 @@ describe("namespace-access", () => {
   });
 
   it("PUT /api/teams/:id updates team in the same namespace", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Same",
       lastName: "Ns",
       email: "samens@example.com",
     });
-    joinNamespace(user.id, "public");
+    await joinNamespace(user.id, "public");
 
     const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
@@ -178,13 +178,13 @@ describe("namespace-access", () => {
   });
 
   it("PUT /api/locations/:id rejects cross-namespace updates", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Loc",
       lastName: "Cross",
       email: "loccross@example.com",
     });
-    joinNamespace(user.id, "public");
-    joinNamespace(user.id, "haikyu");
+    await joinNamespace(user.id, "public");
+    await joinNamespace(user.id, "haikyu");
 
     const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
@@ -226,12 +226,12 @@ describe("namespace-access", () => {
   });
 
   it("PUT /api/locations/:id updates location in the same namespace", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Loc",
       lastName: "Same",
       email: "locsame@example.com",
     });
-    joinNamespace(user.id, "public");
+    await joinNamespace(user.id, "public");
 
     const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
@@ -268,7 +268,7 @@ describe("namespace-access", () => {
   });
 
   it("returns 403 for signed-in user who has not joined namespace", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Guest",
       lastName: "Only",
       email: "guestonly@example.com",

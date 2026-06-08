@@ -1,5 +1,5 @@
 import { AUTO_JOIN_NAMESPACE_SLUG } from "./constants";
-import { getDb } from "./db";
+import { execute, query } from "./db";
 import {
   filterNamespacesForPublicDirectory,
   getAllNamespaces,
@@ -23,80 +23,86 @@ function rowToNamespaceWithMembership(
   };
 }
 
-export function isNamespaceMember(userId: string, namespaceId: string): boolean {
-  const db = getDb();
-  const row = db
-    .prepare(
-      "SELECT 1 FROM namespace_members WHERE user_id = ? AND namespace_id = ? LIMIT 1"
-    )
-    .get(userId, namespaceId);
-  return Boolean(row);
+export async function isNamespaceMember(
+  userId: string,
+  namespaceId: string
+): Promise<boolean> {
+  const row = await query(
+    "SELECT 1 AS ok FROM namespace_members WHERE user_id = ? AND namespace_id = ? LIMIT 1",
+    [userId, namespaceId]
+  );
+  return row.length > 0;
 }
 
-export function addNamespaceMember(userId: string, namespaceId: string): void {
-  const db = getDb();
-  db.prepare(
-    `INSERT OR IGNORE INTO namespace_members (user_id, namespace_id) VALUES (?, ?)`
-  ).run(userId, namespaceId);
+export async function addNamespaceMember(
+  userId: string,
+  namespaceId: string
+): Promise<void> {
+  await execute(
+    `INSERT IGNORE INTO namespace_members (user_id, namespace_id) VALUES (?, ?)`,
+    [userId, namespaceId]
+  );
 }
 
-export function ensurePublicMembership(userId: string): void {
-  const ns = getNamespaceBySlug(AUTO_JOIN_NAMESPACE_SLUG);
+export async function ensurePublicMembership(userId: string): Promise<void> {
+  const ns = await getNamespaceBySlug(AUTO_JOIN_NAMESPACE_SLUG);
   if (!ns) return;
-  addNamespaceMember(userId, ns.id);
+  await addNamespaceMember(userId, ns.id);
 }
 
-export function joinNamespace(userId: string, slug: string): Namespace {
-  const ns = getNamespaceBySlug(slug);
+export async function joinNamespace(userId: string, slug: string): Promise<Namespace> {
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) throw new Error("Namespace not found");
-  addNamespaceMember(userId, ns.id);
+  await addNamespaceMember(userId, ns.id);
   return ns;
 }
 
-export function joinAllNamespaces(userId: string): Namespace[] {
+export async function joinAllNamespaces(userId: string): Promise<Namespace[]> {
   const joined: Namespace[] = [];
-  for (const ns of getAllNamespaces()) {
-    addNamespaceMember(userId, ns.id);
+  for (const ns of await getAllNamespaces()) {
+    await addNamespaceMember(userId, ns.id);
     joined.push(ns);
   }
   return joined;
 }
 
-export function getJoinedNamespaces(userId: string): Namespace[] {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT n.* FROM namespaces n
-       INNER JOIN namespace_members m ON m.namespace_id = n.id
-       WHERE m.user_id = ?
-       ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`
-    )
-    .all(userId, AUTO_JOIN_NAMESPACE_SLUG) as Record<string, unknown>[];
-  return rows.map((row) => namespaceFromRow(row));
+export async function getJoinedNamespaces(userId: string): Promise<Namespace[]> {
+  const rows = await query(
+    `SELECT n.* FROM namespaces n
+     INNER JOIN namespace_members m ON m.namespace_id = n.id
+     WHERE m.user_id = ?
+     ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`,
+    [userId, AUTO_JOIN_NAMESPACE_SLUG]
+  );
+  return rows.map((row) => namespaceFromRow(row as Record<string, unknown>));
 }
 
-export function listNamespacesWithMembership(
+export async function listNamespacesWithMembership(
   userId: string | null,
   options?: { publicDirectory?: boolean }
-): NamespaceWithMembership[] {
-  const db = getDb();
+): Promise<NamespaceWithMembership[]> {
   let list: NamespaceWithMembership[];
 
   if (!userId) {
-    list = getAllNamespaces().map((ns) => ({ ...ns, joined: false, joinedAt: null }));
+    list = (await getAllNamespaces()).map((ns) => ({
+      ...ns,
+      joined: false,
+      joinedAt: null,
+    }));
   } else {
-    const rows = db
-      .prepare(
-        `SELECT n.*,
-                CASE WHEN m.user_id IS NOT NULL THEN 1 ELSE 0 END AS joined,
-                m.joined_at
-         FROM namespaces n
-         LEFT JOIN namespace_members m
-           ON m.namespace_id = n.id AND m.user_id = ?
-         ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`
-      )
-      .all(userId, AUTO_JOIN_NAMESPACE_SLUG) as Record<string, unknown>[];
-    list = rows.map(rowToNamespaceWithMembership);
+    const rows = await query(
+      `SELECT n.*,
+              CASE WHEN m.user_id IS NOT NULL THEN 1 ELSE 0 END AS joined,
+              m.joined_at
+       FROM namespaces n
+       LEFT JOIN namespace_members m
+         ON m.namespace_id = n.id AND m.user_id = ?
+       ORDER BY CASE WHEN n.slug = ? THEN 0 ELSE 1 END, n.name`,
+      [userId, AUTO_JOIN_NAMESPACE_SLUG]
+    );
+    list = rows.map((row) =>
+      rowToNamespaceWithMembership(row as Record<string, unknown>)
+    );
   }
 
   if (options?.publicDirectory) {
@@ -105,15 +111,16 @@ export function listNamespacesWithMembership(
   return list;
 }
 
-export function backfillPublicMembershipForAllUsers(publicNamespaceId: string): void {
-  const db = getDb();
-  const users = db.prepare("SELECT id FROM users").all() as { id: string }[];
+export async function backfillPublicMembershipForAllUsers(
+  publicNamespaceId: string
+): Promise<void> {
+  const users = await query<{ id: string }>("SELECT id FROM users");
   for (const user of users) {
-    addNamespaceMember(user.id, publicNamespaceId);
+    await addNamespaceMember(user.id, publicNamespaceId);
   }
 }
 
 /** Ensure existing session users have at least Public membership. */
-export function syncUserNamespaceMembership(userId: string): void {
-  ensurePublicMembership(userId);
+export async function syncUserNamespaceMembership(userId: string): Promise<void> {
+  await ensurePublicMembership(userId);
 }

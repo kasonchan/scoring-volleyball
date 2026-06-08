@@ -10,7 +10,7 @@ export async function GET(
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const location = getLocation(id, ctxOrErr.ns.id);
+  const location = await getLocation(id, ctxOrErr.ns.id);
   if (!location) {
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }
@@ -25,11 +25,11 @@ export async function PUT(
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const { id } = await params;
-    if (!getLocation(id, ctxOrErr.ns.id)) {
+    if (!await getLocation(id, ctxOrErr.ns.id)) {
       return NextResponse.json({ error: "Location not found" }, { status: 404 });
     }
     const body = (await request.json()) as LocationInput;
-    const location = updateLocation(id, body);
+    const location = await updateLocation(id, body);
     return NextResponse.json(location);
   } catch (error) {
     return NextResponse.json(
@@ -46,11 +46,11 @@ export async function DELETE(
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const location = getLocation(id, ctxOrErr.ns.id);
+  const location = await getLocation(id, ctxOrErr.ns.id);
   if (!location) {
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }
-  const deleted = deleteLocation(id);
+  const deleted = await deleteLocation(id);
   if (!deleted) {
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }

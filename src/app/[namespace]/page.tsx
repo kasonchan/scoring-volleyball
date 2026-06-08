@@ -15,7 +15,7 @@ export default async function NamespaceHomePage({
 }) {
   const { namespace: slug } = await params;
   const { join, next } = await searchParams;
-  const ns = getNamespaceBySlug(slug);
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) notFound();
 
   const base = namespaceAppPath(slug);

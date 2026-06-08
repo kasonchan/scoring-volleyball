@@ -95,7 +95,7 @@ export function NamespaceDirectory() {
                   ) : user ? (
                     <button
                       type="button"
-                      onClick={() => joinNamespace(ns.slug)}
+                      onClick={() => void joinNamespace(ns.slug)}
                       disabled={busySlug !== null}
                       className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >

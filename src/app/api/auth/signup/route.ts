@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     assertSignupEmailAllowed(body.email ?? "");
     assertSignupInviteCode(body.inviteCode);
 
-    const user = createUser({
+    const user = await createUser({
       firstName: body.firstName,
       lastName: body.lastName,
       email: body.email,

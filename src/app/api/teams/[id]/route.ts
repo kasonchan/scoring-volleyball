@@ -10,7 +10,7 @@ export async function GET(
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const team = getTeam(id, ctxOrErr.ns.id);
+  const team = await getTeam(id, ctxOrErr.ns.id);
   if (!team) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
@@ -25,11 +25,11 @@ export async function PUT(
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const { id } = await params;
-    if (!getTeam(id, ctxOrErr.ns.id)) {
+    if (!await getTeam(id, ctxOrErr.ns.id)) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
     const body = (await request.json()) as UpdateTeamInput;
-    const team = updateTeam(id, body);
+    const team = await updateTeam(id, body);
     return NextResponse.json(team);
   } catch (error) {
     return NextResponse.json(
@@ -46,11 +46,11 @@ export async function DELETE(
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const team = getTeam(id, ctxOrErr.ns.id);
+  const team = await getTeam(id, ctxOrErr.ns.id);
   if (!team) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
-  const deleted = deleteTeam(id);
+  const deleted = await deleteTeam(id);
   if (!deleted) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }

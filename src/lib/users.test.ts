@@ -5,8 +5,8 @@ import { setupTestDatabase } from "@/test/test-db";
 describe("users", () => {
   setupTestDatabase();
 
-  it("creates a user with required fields and auto-generated handle", () => {
-    const user = createUser({
+  it("creates a user with required fields and auto-generated handle", async () => {
+    const user = await createUser({
       firstName: "Kason",
       lastName: "Chan",
       email: "kason@example.com",
@@ -17,8 +17,8 @@ describe("users", () => {
     expect(user.handle).toMatch(/^kason_chan/);
   });
 
-  it("creates a user with a custom handle", () => {
-    const user = createUser({
+  it("creates a user with a custom handle", async () => {
+    const user = await createUser({
       firstName: "Taylor",
       lastName: "Swift",
       email: "taylor@example.com",
@@ -27,39 +27,39 @@ describe("users", () => {
     expect(user.handle).toBe("tswift");
   });
 
-  it("rejects duplicate email", () => {
-    createUser({
+  it("rejects duplicate email", async () => {
+    await createUser({
       firstName: "A",
       lastName: "B",
       email: "dup@example.com",
     });
-    expect(() =>
+    await expect(
       createUser({
         firstName: "C",
         lastName: "D",
         email: "dup@example.com",
       })
-    ).toThrow(/email already exists/i);
+    ).rejects.toThrow(/email already exists/i);
   });
 
-  it("rejects missing first name", () => {
-    expect(() =>
+  it("rejects missing first name", async () => {
+    await expect(
       createUser({
         firstName: "  ",
         lastName: "Doe",
         email: "x@example.com",
       })
-    ).toThrow(/first name/i);
+    ).rejects.toThrow(/first name/i);
   });
 
-  it("updates profile fields", () => {
-    const user = createUser({
+  it("updates profile fields", async () => {
+    const user = await createUser({
       firstName: "Old",
       lastName: "Name",
       email: "old@example.com",
       handle: "old_name",
     });
-    const updated = updateUserProfile(user.id, {
+    const updated = await updateUserProfile(user.id, {
       firstName: "New",
       lastName: "Person",
       email: "new@example.com",
@@ -70,33 +70,33 @@ describe("users", () => {
     expect(updated.handle).toBe("new_person");
   });
 
-  it("rejects duplicate email on profile update", () => {
-    const a = createUser({
+  it("rejects duplicate email on profile update", async () => {
+    const a = await createUser({
       firstName: "A",
       lastName: "One",
       email: "a@example.com",
     });
-    createUser({
+    await createUser({
       firstName: "B",
       lastName: "Two",
       email: "b@example.com",
     });
-    expect(() =>
+    await expect(
       updateUserProfile(a.id, {
         firstName: "A",
         lastName: "One",
         email: "b@example.com",
         handle: a.handle,
       })
-    ).toThrow(/email already exists/i);
+    ).rejects.toThrow(/email already exists/i);
   });
 
-  it("stores email case-insensitively", () => {
-    createUser({
+  it("stores email case-insensitively", async () => {
+    await createUser({
       firstName: "Case",
       lastName: "Test",
       email: "Mixed@Example.COM",
     });
-    expect(getUserByEmail("mixed@example.com")?.email).toBe("mixed@example.com");
+    expect(await getUserByEmail("mixed@example.com")?.email).toBe("mixed@example.com");
   });
 });

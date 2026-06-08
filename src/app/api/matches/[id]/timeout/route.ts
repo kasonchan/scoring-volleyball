@@ -15,7 +15,7 @@ export async function POST(
     if (!body.team) {
       return NextResponse.json({ error: "Team is required" }, { status: 400 });
     }
-    const match = callTimeout(matchId, body);
+    const match = await callTimeout(matchId, body);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(

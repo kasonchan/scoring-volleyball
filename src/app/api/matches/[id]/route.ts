@@ -15,7 +15,7 @@ export async function GET(
   const { id } = await params;
   const access = await resolveSpectatorMatchReadAccess(request, id);
   if (isSpectatorViewError(access)) return access;
-  const match = getMatch(id, access.ns.id);
+  const match = await getMatch(id, access.ns.id);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
@@ -34,7 +34,7 @@ export async function PUT(
     if (!body.homeTeamId || !body.awayTeamId) {
       return NextResponse.json({ error: "Both teams are required" }, { status: 400 });
     }
-    const match = updateMatch(ctxOrErr.ns.id, id, body);
+    const match = await updateMatch(ctxOrErr.ns.id, id, body);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(
@@ -51,11 +51,11 @@ export async function DELETE(
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id } = await params;
-  const match = getMatch(id, ctxOrErr.ns.id);
+  const match = await getMatch(id, ctxOrErr.ns.id);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
-  const deleted = deleteMatch(id);
+  const deleted = await deleteMatch(id);
   if (!deleted) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }

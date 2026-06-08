@@ -15,7 +15,7 @@ export async function POST(
     if (!body.team || !body.playerInId || !body.position) {
       return NextResponse.json({ error: "Team, player in, and position are required" }, { status: 400 });
     }
-    const match = liberoIn(matchId, body);
+    const match = await liberoIn(matchId, body);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(
