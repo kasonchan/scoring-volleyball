@@ -68,8 +68,6 @@ export const MYSQL_SCHEMA_STATEMENTS: string[] = [
     FOREIGN KEY (location_id) REFERENCES locations(id)
   )`,
 
-  `CREATE INDEX IF NOT EXISTS idx_matches_spectator_token ON matches(spectator_token)`,
-
   `CREATE TABLE IF NOT EXISTS match_sets (
     id CHAR(36) PRIMARY KEY,
     match_id CHAR(36) NOT NULL,
@@ -178,12 +176,11 @@ export const MYSQL_SCHEMA_STATEMENTS: string[] = [
     namespace_id CHAR(36) NOT NULL,
     joined_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (user_id, namespace_id),
+    KEY idx_namespace_members_user (user_id),
+    KEY idx_namespace_members_namespace (namespace_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (namespace_id) REFERENCES namespaces(id) ON DELETE CASCADE
   )`,
-
-  `CREATE INDEX IF NOT EXISTS idx_namespace_members_user ON namespace_members(user_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_namespace_members_namespace ON namespace_members(namespace_id)`,
 
   `CREATE TABLE IF NOT EXISTS login_tokens (
     id CHAR(36) PRIMARY KEY,
@@ -194,11 +191,10 @@ export const MYSQL_SCHEMA_STATEMENTS: string[] = [
     expires_at DATETIME(3) NOT NULL,
     used_at DATETIME(3),
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    KEY idx_login_tokens_user (user_id),
+    KEY idx_login_tokens_email (email),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )`,
-
-  `CREATE INDEX IF NOT EXISTS idx_login_tokens_user ON login_tokens(user_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_login_tokens_email ON login_tokens(email)`,
 ];
 
 /** All application tables created by MYSQL_SCHEMA_STATEMENTS. */

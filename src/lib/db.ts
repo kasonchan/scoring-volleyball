@@ -96,13 +96,15 @@ async function ensureNamespace(
   description: string,
   spectatorAccess: "public" | "members" | "link"
 ): Promise<string> {
-  const existing = await queryOne<RowDataPacket>(
+  // Use the pool passed in — not query()/execute(), which await getPool() and deadlock during initSchema.
+  const [rows] = await p.execute<RowDataPacket[]>(
     "SELECT id FROM namespaces WHERE slug = ?",
     [slug]
   );
+  const existing = rows[0];
 
   if (existing) {
-    await execute(
+    await p.execute(
       "UPDATE namespaces SET name = ?, description = ?, spectator_access = ? WHERE slug = ?",
       [name, description, spectatorAccess, slug]
     );
@@ -110,7 +112,7 @@ async function ensureNamespace(
   }
 
   const id = uuidv4();
-  await execute(
+  await p.execute(
     "INSERT INTO namespaces (id, slug, name, description, spectator_access) VALUES (?, ?, ?, ?, ?)",
     [id, slug, name, description, spectatorAccess]
   );

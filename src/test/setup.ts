@@ -35,4 +35,4 @@ process.env.MYSQL_USER ??= "doadmin";
 process.env.MYSQL_PASSWORD ??= "";
 process.env.MYSQL_DATABASE ??= "defaultdb";
 process.env.MYSQL_SSL ??= "true";
-process.env.MYSQL_SSL_REJECT_UNAUTHORIZED ??= "true";
+process.env.MYSQL_SSL_REJECT_UNAUTHORIZED ??= "false";

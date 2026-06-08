@@ -55,6 +55,9 @@ MYSQL_USER=doadmin
 MYSQL_PASSWORD=...
 MYSQL_DATABASE=volleyball
 MYSQL_SSL=true
+MYSQL_SSL_REJECT_UNAUTHORIZED=false
 ```
+
+For stricter TLS verification, download the cluster CA from DigitalOcean and set `MYSQL_SSL_CA=path/to/ca-certificate.crt` with `MYSQL_SSL_REJECT_UNAUTHORIZED=true`.
 
 The schema is created automatically on first connection.
