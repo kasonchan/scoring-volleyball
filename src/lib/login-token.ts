@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { execute, queryOne } from "./db";
+import { toMysqlDatetime } from "./mysql-datetime";
 import { getUserByEmail, PublicUser } from "./users";
 import { sendLoginTokenEmail } from "./email";
 
@@ -40,7 +41,9 @@ export async function issueLoginToken(
   const normalizedEmail = email.trim().toLowerCase();
   const token = generateLoginToken();
   const tokenHash = hashToken(normalizeLoginTokenInput(token));
-  const expiresAt = new Date(Date.now() + LOGIN_TOKEN_EXPIRY_MINUTES * 60 * 1000).toISOString();
+  const expiresAt = toMysqlDatetime(
+    new Date(Date.now() + LOGIN_TOKEN_EXPIRY_MINUTES * 60 * 1000)
+  );
 
   await execute(
     `UPDATE login_tokens SET used_at = UTC_TIMESTAMP(3)
