@@ -163,6 +163,8 @@ describe("MySQL migration", () => {
         awayRotation: awayIds,
         servingTeam: "home",
         homeLiberoIds: [liberoPlayer.id],
+        homeGameCaptainId: homeIds[0],
+        awayGameCaptainId: awayIds[0],
       });
 
       await startRally(match.id);

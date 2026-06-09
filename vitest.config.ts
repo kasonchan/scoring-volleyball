@@ -7,6 +7,11 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.ts"],
     exclude: ["src/**/*.integration.test.ts"],
+    // All DB tests share one MySQL database; parallel files race on truncate/seed.
+    fileParallelism: false,
+    maxWorkers: 1,
+    testTimeout: 30_000,
+    globalTeardown: "./src/test/global-teardown.ts",
   },
   resolve: {
     alias: {

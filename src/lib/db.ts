@@ -28,6 +28,29 @@ const HAIKYU_NAMESPACE_DESCRIPTION =
 let pool: Pool | null = null;
 let initPromise: Promise<void> | null = null;
 
+function isFatalPoolError(err: unknown): boolean {
+  const fatal = (err as { fatal?: boolean }).fatal;
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    fatal === true ||
+    message.includes("closed state") ||
+    message.includes("Pool is closed")
+  );
+}
+
+async function invalidatePool(): Promise<void> {
+  const current = pool;
+  pool = null;
+  initPromise = null;
+  if (current) {
+    try {
+      await current.end();
+    } catch {
+      // Pool may already be closed after a fatal connection error.
+    }
+  }
+}
+
 export async function getPool(): Promise<Pool> {
   if (!pool) {
     pool = mysql.createPool(getMysqlPoolOptions());
@@ -37,13 +60,24 @@ export async function getPool(): Promise<Pool> {
   return pool;
 }
 
+async function runWithPoolRetry<T>(run: (p: Pool) => Promise<T>): Promise<T> {
+  try {
+    return await run(await getPool());
+  } catch (err) {
+    if (!isFatalPoolError(err)) throw err;
+    await invalidatePool();
+    return await run(await getPool());
+  }
+}
+
 export async function query<T = RowDataPacket>(
   sql: string,
   params: SqlParams = []
 ): Promise<T[]> {
-  const p = await getPool();
-  const [rows] = await p.execute(sql, params as never);
-  return rows as T[];
+  return runWithPoolRetry(async (p) => {
+    const [rows] = await p.execute(sql, params as never);
+    return rows as T[];
+  });
 }
 
 export async function queryOne<T = RowDataPacket>(
@@ -58,17 +92,14 @@ export async function execute(
   sql: string,
   params: SqlParams = []
 ): Promise<ResultSetHeader> {
-  const p = await getPool();
-  const [result] = await p.execute<ResultSetHeader>(sql, params as never);
-  return result;
+  return runWithPoolRetry(async (p) => {
+    const [result] = await p.execute<ResultSetHeader>(sql, params as never);
+    return result;
+  });
 }
 
 export async function closeDb(): Promise<void> {
-  if (pool) {
-    await pool.end();
-    pool = null;
-    initPromise = null;
-  }
+  await invalidatePool();
 }
 
 /** Clear all application tables (tests). */
@@ -112,11 +143,29 @@ async function ensureNamespace(
   }
 
   const id = uuidv4();
-  await p.execute(
-    "INSERT INTO namespaces (id, slug, name, description, spectator_access) VALUES (?, ?, ?, ?, ?)",
-    [id, slug, name, description, spectatorAccess]
-  );
-  return id;
+  try {
+    await p.execute(
+      "INSERT INTO namespaces (id, slug, name, description, spectator_access) VALUES (?, ?, ?, ?, ?)",
+      [id, slug, name, description, spectatorAccess]
+    );
+    return id;
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code !== "ER_DUP_ENTRY") throw err;
+
+    const [dupRows] = await p.execute<RowDataPacket[]>(
+      "SELECT id FROM namespaces WHERE slug = ?",
+      [slug]
+    );
+    const dup = dupRows[0];
+    if (!dup) throw err;
+
+    await p.execute(
+      "UPDATE namespaces SET name = ?, description = ?, spectator_access = ? WHERE slug = ?",
+      [name, description, spectatorAccess, slug]
+    );
+    return dup.id as string;
+  }
 }
 
 async function seedNamespaces(p: Pool): Promise<void> {

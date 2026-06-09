@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createUser, getUserByEmail, updateUserProfile } from "@/lib/users";
+import { createUser, updateUserProfile } from "@/lib/users";
 import { setupTestDatabase } from "@/test/test-db";
 
 describe("users", () => {
@@ -92,11 +92,15 @@ describe("users", () => {
   });
 
   it("stores email case-insensitively", async () => {
-    await createUser({
+    const user = await createUser({
       firstName: "Case",
       lastName: "Test",
       email: "Mixed@Example.COM",
     });
-    expect(await getUserByEmail("mixed@example.com")?.email).toBe("mixed@example.com");
+    expect(user.email).toBe("mixed@example.com");
+
+    const { getUserByEmail: lookupByEmail } = await import("@/lib/users");
+    expect(await lookupByEmail("MIXED@example.com")?.email).toBe("mixed@example.com");
+    expect(await lookupByEmail("mixed@example.com")?.id).toBe(user.id);
   });
 });

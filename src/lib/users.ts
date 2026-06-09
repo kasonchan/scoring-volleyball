@@ -48,10 +48,10 @@ export async function getUserById(id: string): Promise<PublicUser | null> {
 }
 
 export async function getUserByEmail(email: string): Promise<PublicUser | null> {
-  const row = await queryOne("SELECT * FROM users WHERE LOWER(email) = ?", [
-    email.trim().toLowerCase(),
-  ]);
-  return row ? rowToPublicUser(row as Record<string, unknown>) : null;
+  const normalized = email.trim().toLowerCase();
+  const row = await queryOne("SELECT * FROM users WHERE email = ?", [normalized]);
+  if (!row) return null;
+  return rowToPublicUser(row as Record<string, unknown>);
 }
 
 export async function createUser(input: SignupInput): Promise<PublicUser> {
@@ -64,7 +64,7 @@ export async function createUser(input: SignupInput): Promise<PublicUser> {
   if (!email) throw new Error("Email is required");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address");
 
-  const existing = await queryOne("SELECT id FROM users WHERE LOWER(email) = ?", [email]);
+  const existing = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
   if (existing) throw new Error("An account with this email already exists");
 
   const handleResult = await resolveSignupHandle(firstName, lastName, input.handle);
@@ -100,7 +100,7 @@ export async function updateUserProfile(
   if ("error" in handleResult) throw new Error(handleResult.error);
 
   const emailTaken = await queryOne(
-    "SELECT id FROM users WHERE LOWER(email) = ? AND id != ?",
+    "SELECT id FROM users WHERE email = ? AND id != ?",
     [email, userId]
   );
   if (emailTaken) throw new Error("An account with this email already exists");

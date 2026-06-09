@@ -1,12 +1,13 @@
-import { afterEach, beforeEach } from "vitest";
-import { closeDb, resetTestDatabase } from "@/lib/db";
+import { beforeEach } from "vitest";
+import { resetTestDatabase } from "@/lib/db";
 
+let resetChain: Promise<void> = Promise.resolve();
+
+/** Reset MySQL between tests. Serializes resets when hooks overlap. */
 export function setupTestDatabase(): void {
   beforeEach(async () => {
-    await resetTestDatabase();
-  });
-
-  afterEach(async () => {
-    await closeDb();
+    const run = resetChain.then(() => resetTestDatabase());
+    resetChain = run;
+    await run;
   });
 }
