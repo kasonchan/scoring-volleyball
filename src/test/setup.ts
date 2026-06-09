@@ -1,6 +1,9 @@
 import "./mock-cookies";
+import "./mock-nodemailer";
+import { afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
+import { setTestEmailSink } from "@/lib/email";
 
 process.env.SESSION_SECRET = "test-session-secret";
 
@@ -27,6 +30,25 @@ function loadEnvTest(): void {
 }
 
 loadEnvTest();
+
+/** Unit tests mock SMTP; drop local .env.test mail credentials so email.test controls env. */
+for (const key of [
+  "EMAIL_FROM",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_SECURE",
+  "GMAIL_USER",
+  "GMAIL_APP_PASSWORD",
+  "SMTP_APP_PASSWORD",
+]) {
+  delete process.env[key];
+}
+
+afterEach(() => {
+  setTestEmailSink(null);
+});
 
 // Defaults when not set (e.g. CI uses workflow env; local uses .env.test or these)
 process.env.MYSQL_HOST ??=

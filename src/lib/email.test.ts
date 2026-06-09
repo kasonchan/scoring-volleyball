@@ -1,5 +1,5 @@
 import "@/test/mock-nodemailer";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTransport, sendMail } from "@/test/mock-nodemailer";
 import { sendLoginTokenEmail, setTestEmailSink } from "@/lib/email";
 
@@ -16,7 +16,7 @@ function clearSmtpEnv(): void {
 }
 
 describe("email", () => {
-  const envSnapshot = { ...process.env };
+  const initialNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     sendMail.mockReset();
@@ -24,11 +24,9 @@ describe("email", () => {
     createTransport.mockClear();
     setTestEmailSink(null);
     clearSmtpEnv();
-  });
-
-  afterEach(() => {
-    process.env = { ...envSnapshot };
-    setTestEmailSink(null);
+    delete process.env.APP_URL;
+    if (initialNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = initialNodeEnv;
   });
 
   it("delivers to testEmailSink without calling SMTP", async () => {
