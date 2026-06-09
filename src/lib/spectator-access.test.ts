@@ -1,21 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@/test/mock-cookies";
+import { beforeEach, describe, expect, it } from "vitest";
 import { NAMESPACE_SLUG_HEADER } from "@/lib/constants";
 import { createTeam, createMatch } from "@/lib/queries";
 import { getNamespaceBySlug } from "@/lib/namespaces";
 import { createUser } from "@/lib/users";
 import { joinNamespace } from "@/lib/namespace-members";
 import { resetRateLimitStore } from "@/lib/rate-limit";
+import { cookieGet } from "@/test/mock-cookies";
 import { setupTestDatabase } from "@/test/test-db";
-
-const cookieGet = vi.fn();
-
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({
-    get: cookieGet,
-    set: vi.fn(),
-    delete: vi.fn(),
-  })),
-}));
 
 describe("spectator match access", () => {
   setupTestDatabase();

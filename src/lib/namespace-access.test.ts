@@ -1,21 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
+import "@/test/mock-cookies";
+import { beforeEach, describe, expect, it } from "vitest";
+import { GET as getMatches, POST as postMatches } from "@/app/api/matches/route";
+import { POST as postLocations } from "@/app/api/locations/route";
+import {
+  GET as getLocationById,
+  PUT as putLocationById,
+} from "@/app/api/locations/[id]/route";
+import { GET as getTeams, POST as postTeams } from "@/app/api/teams/route";
+import { GET as getTeamById, PUT as putTeamById } from "@/app/api/teams/[id]/route";
 import { NAMESPACE_SLUG_HEADER } from "@/lib/constants";
-import { createUser } from "@/lib/users";
 import { joinNamespace } from "@/lib/namespace-members";
+import { createSessionToken } from "@/lib/session";
+import { createUser } from "@/lib/users";
+import { cookieGet } from "@/test/mock-cookies";
 import { setupTestDatabase } from "@/test/test-db";
-
-const cookieGet = vi.fn();
-
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({
-    get: cookieGet,
-    set: vi.fn(),
-    delete: vi.fn(),
-  })),
-}));
 
 describe("namespace-access", () => {
   setupTestDatabase();
+
+  beforeEach(() => {
+    cookieGet.mockReset();
+  });
 
   function request(path: string, method = "GET", slug = "public") {
     return new Request(`http://localhost${path}`, {
@@ -24,17 +29,33 @@ describe("namespace-access", () => {
     });
   }
 
+  function authedRequest(
+    path: string,
+    method: string,
+    slug: string,
+    userId: string,
+    body?: unknown
+  ) {
+    cookieGet.mockReturnValue({ value: createSessionToken(userId) });
+    return new Request(`http://localhost${path}`, {
+      method,
+      headers: {
+        [NAMESPACE_SLUG_HEADER]: slug,
+        "Content-Type": "application/json",
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
   it("allows public GET /api/matches without session", async () => {
-    const { GET } = await import("@/app/api/matches/route");
     cookieGet.mockReturnValue(undefined);
-    const res = await GET(request("/api/matches"));
+    const res = await getMatches(request("/api/matches"));
     expect(res.status).toBe(200);
   });
 
   it("blocks POST /api/matches without session", async () => {
-    const { POST } = await import("@/app/api/matches/route");
     cookieGet.mockReturnValue(undefined);
-    const res = await POST(
+    const res = await postMatches(
       request("/api/matches", "POST", "public"),
       undefined as never
     );
@@ -42,9 +63,8 @@ describe("namespace-access", () => {
   });
 
   it("blocks GET /api/teams without session", async () => {
-    const { GET } = await import("@/app/api/teams/route");
     cookieGet.mockReturnValue(undefined);
-    const res = await GET(request("/api/teams"));
+    const res = await getTeams(request("/api/teams"));
     expect(res.status).toBe(401);
   });
 
@@ -56,21 +76,10 @@ describe("namespace-access", () => {
     });
     await joinNamespace(user.id, "public");
 
-    const { createSessionToken } = await import("@/lib/session");
-    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
-
-    const { POST } = await import("@/app/api/teams/route");
-    const res = await POST(
-      new Request("http://localhost/api/teams", {
-        method: "POST",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "Eagles",
-          players: [{ name: "A", jerseyNumber: 1 }],
-        }),
+    const res = await postTeams(
+      authedRequest("/api/teams", "POST", "public", user.id, {
+        name: "Eagles",
+        players: [{ name: "A", jerseyNumber: 1 }],
       })
     );
     expect(res.status).toBe(201);
@@ -85,45 +94,25 @@ describe("namespace-access", () => {
     await joinNamespace(user.id, "public");
     await joinNamespace(user.id, "haikyu");
 
-    const { createSessionToken } = await import("@/lib/session");
-    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
-
-    const { POST } = await import("@/app/api/teams/route");
-    const createRes = await POST(
-      new Request("http://localhost/api/teams", {
-        method: "POST",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "Public Only",
-          players: [{ name: "P1", jerseyNumber: 1 }],
-        }),
+    const createRes = await postTeams(
+      authedRequest("/api/teams", "POST", "public", user.id, {
+        name: "Public Only",
+        players: [{ name: "P1", jerseyNumber: 1 }],
       })
     );
     const created = await createRes.json();
     expect(createRes.status).toBe(201);
 
-    const { PUT } = await import("@/app/api/teams/[id]/route");
-    const putRes = await PUT(
-      new Request(`http://localhost/api/teams/${created.id}`, {
-        method: "PUT",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "haikyu",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "Hijacked",
-          players: [{ name: "X", jerseyNumber: 99 }],
-        }),
+    const putRes = await putTeamById(
+      authedRequest(`/api/teams/${created.id}`, "PUT", "haikyu", user.id, {
+        name: "Hijacked",
+        players: [{ name: "X", jerseyNumber: 99 }],
       }),
       { params: Promise.resolve({ id: created.id }) }
     );
     expect(putRes.status).toBe(404);
 
-    const { GET } = await import("@/app/api/teams/[id]/route");
-    const getRes = await GET(request(`/api/teams/${created.id}`, "GET", "public"), {
+    const getRes = await getTeamById(request(`/api/teams/${created.id}`, "GET", "public"), {
       params: Promise.resolve({ id: created.id }),
     });
     const team = await getRes.json();
@@ -138,37 +127,18 @@ describe("namespace-access", () => {
     });
     await joinNamespace(user.id, "public");
 
-    const { createSessionToken } = await import("@/lib/session");
-    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
-
-    const { POST } = await import("@/app/api/teams/route");
-    const createRes = await POST(
-      new Request("http://localhost/api/teams", {
-        method: "POST",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "Before",
-          players: [{ name: "P1", jerseyNumber: 1 }],
-        }),
+    const createRes = await postTeams(
+      authedRequest("/api/teams", "POST", "public", user.id, {
+        name: "Before",
+        players: [{ name: "P1", jerseyNumber: 1 }],
       })
     );
     const created = await createRes.json();
 
-    const { PUT } = await import("@/app/api/teams/[id]/route");
-    const putRes = await PUT(
-      new Request(`http://localhost/api/teams/${created.id}`, {
-        method: "PUT",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "After",
-          players: [{ name: "P1", jerseyNumber: 1 }],
-        }),
+    const putRes = await putTeamById(
+      authedRequest(`/api/teams/${created.id}`, "PUT", "public", user.id, {
+        name: "After",
+        players: [{ name: "P1", jerseyNumber: 1 }],
       }),
       { params: Promise.resolve({ id: created.id }) }
     );
@@ -186,41 +156,28 @@ describe("namespace-access", () => {
     await joinNamespace(user.id, "public");
     await joinNamespace(user.id, "haikyu");
 
-    const { createSessionToken } = await import("@/lib/session");
-    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
-
-    const { POST } = await import("@/app/api/locations/route");
-    const createRes = await POST(
-      new Request("http://localhost/api/locations", {
-        method: "POST",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: "Public Gym", address: "1 Main St" }),
+    const createRes = await postLocations(
+      authedRequest("/api/locations", "POST", "public", user.id, {
+        name: "Public Gym",
+        address: "1 Main St",
       })
     );
     const created = await createRes.json();
     expect(createRes.status).toBe(201);
 
-    const { PUT } = await import("@/app/api/locations/[id]/route");
-    const putRes = await PUT(
-      new Request(`http://localhost/api/locations/${created.id}`, {
-        method: "PUT",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "haikyu",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: "Hijacked", address: "Elsewhere" }),
+    const putRes = await putLocationById(
+      authedRequest(`/api/locations/${created.id}`, "PUT", "haikyu", user.id, {
+        name: "Hijacked",
+        address: "Elsewhere",
       }),
       { params: Promise.resolve({ id: created.id }) }
     );
     expect(putRes.status).toBe(404);
 
-    const { GET } = await import("@/app/api/locations/[id]/route");
-    const getRes = await GET(request(`/api/locations/${created.id}`, "GET", "public"), {
-      params: Promise.resolve({ id: created.id }),
-    });
+    const getRes = await getLocationById(
+      request(`/api/locations/${created.id}`, "GET", "public"),
+      { params: Promise.resolve({ id: created.id }) }
+    );
     const location = await getRes.json();
     expect(location.name).toBe("Public Gym");
   });
@@ -233,31 +190,18 @@ describe("namespace-access", () => {
     });
     await joinNamespace(user.id, "public");
 
-    const { createSessionToken } = await import("@/lib/session");
-    cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
-
-    const { POST } = await import("@/app/api/locations/route");
-    const createRes = await POST(
-      new Request("http://localhost/api/locations", {
-        method: "POST",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: "Old Gym", address: "1 Main St" }),
+    const createRes = await postLocations(
+      authedRequest("/api/locations", "POST", "public", user.id, {
+        name: "Old Gym",
+        address: "1 Main St",
       })
     );
     const created = await createRes.json();
 
-    const { PUT } = await import("@/app/api/locations/[id]/route");
-    const putRes = await PUT(
-      new Request(`http://localhost/api/locations/${created.id}`, {
-        method: "PUT",
-        headers: {
-          [NAMESPACE_SLUG_HEADER]: "public",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: "New Gym", address: "2 Main St" }),
+    const putRes = await putLocationById(
+      authedRequest(`/api/locations/${created.id}`, "PUT", "public", user.id, {
+        name: "New Gym",
+        address: "2 Main St",
       }),
       { params: Promise.resolve({ id: created.id }) }
     );
@@ -273,11 +217,9 @@ describe("namespace-access", () => {
       lastName: "Only",
       email: "guestonly@example.com",
     });
-    const { createSessionToken } = await import("@/lib/session");
     cookieGet.mockReturnValue({ value: createSessionToken(user.id) });
 
-    const { GET } = await import("@/app/api/teams/route");
-    const res = await GET(request("/api/teams", "GET", "haikyu"));
+    const res = await getTeams(request("/api/teams", "GET", "haikyu"));
     expect(res.status).toBe(403);
   });
 });

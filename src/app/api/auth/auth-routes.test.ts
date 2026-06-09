@@ -1,19 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@/test/mock-cookies";
+import { beforeEach, describe, expect, it } from "vitest";
 import { setTestEmailSink, type LoginTokenEmailPayload } from "@/lib/email";
 import { resetRateLimitStore } from "@/lib/rate-limit";
+import { cookieDelete, cookieGet, cookieSet } from "@/test/mock-cookies";
 import { setupTestDatabase } from "@/test/test-db";
-
-const cookieSet = vi.fn();
-const cookieDelete = vi.fn();
-const cookieGet = vi.fn();
-
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({
-    set: cookieSet,
-    delete: cookieDelete,
-    get: cookieGet,
-  })),
-}));
 
 describe("auth API routes", () => {
   setupTestDatabase();

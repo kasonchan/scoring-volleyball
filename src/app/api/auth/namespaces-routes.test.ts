@@ -1,18 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@/test/mock-cookies";
+import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_NAMESPACE_SLUG, PUBLIC_NAMESPACE_SLUG } from "@/lib/constants";
 import { setTestEmailSink } from "@/lib/email";
+import { cookieGet, cookieSet } from "@/test/mock-cookies";
 import { setupTestDatabase } from "@/test/test-db";
-
-const cookieSet = vi.fn();
-const cookieGet = vi.fn();
-
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({
-    set: cookieSet,
-    delete: vi.fn(),
-    get: cookieGet,
-  })),
-}));
 
 describe("auth namespaces API routes", () => {
   setupTestDatabase();
