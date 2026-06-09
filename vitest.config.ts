@@ -13,7 +13,6 @@ export default defineConfig({
     isolate: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    globalTeardown: "./src/test/global-teardown.ts",
   },
   resolve: {
     alias: {

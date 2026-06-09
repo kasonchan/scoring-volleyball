@@ -1,8 +1,9 @@
 import "./mock-cookies";
 import "./mock-nodemailer";
-import { afterEach } from "vitest";
+import { afterAll, afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
+import { closeDb } from "@/lib/db";
 import { setTestEmailSink } from "@/lib/email";
 
 process.env.SESSION_SECRET = "test-session-secret";
@@ -48,6 +49,10 @@ for (const key of [
 
 afterEach(() => {
   setTestEmailSink(null);
+});
+
+afterAll(async () => {
+  await closeDb();
 });
 
 // Defaults when not set (e.g. CI uses workflow env; local uses .env.test or these)
