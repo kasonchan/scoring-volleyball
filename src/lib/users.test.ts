@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { createUser, updateUserProfile } from "@/lib/users";
+import { createUser, getUserById, updateUserProfile } from "@/lib/users";
 import { setupTestDatabase } from "@/test/test-db";
 
 describe("users", () => {
   setupTestDatabase();
+
+  it("normalizes email to lowercase on signup", async () => {
+    const user = await createUser({
+      firstName: "Case",
+      lastName: "Test",
+      email: "Mixed@Example.COM",
+    });
+    expect(user.email).toBe("mixed@example.com");
+    expect((await getUserById(user.id))?.email).toBe("mixed@example.com");
+  });
 
   it("creates a user with required fields and auto-generated handle", async () => {
     const user = await createUser({
@@ -91,16 +101,4 @@ describe("users", () => {
     ).rejects.toThrow(/email already exists/i);
   });
 
-  it("stores email case-insensitively", async () => {
-    const user = await createUser({
-      firstName: "Case",
-      lastName: "Test",
-      email: "Mixed@Example.COM",
-    });
-    expect(user.email).toBe("mixed@example.com");
-
-    const { getUserByEmail: lookupByEmail } = await import("@/lib/users");
-    expect(await lookupByEmail("MIXED@example.com")?.email).toBe("mixed@example.com");
-    expect(await lookupByEmail("mixed@example.com")?.id).toBe(user.id);
-  });
 });

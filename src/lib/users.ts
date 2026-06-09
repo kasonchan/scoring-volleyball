@@ -47,9 +47,13 @@ export async function getUserById(id: string): Promise<PublicUser | null> {
   return row ? rowToPublicUser(row as Record<string, unknown>) : null;
 }
 
+export function normalizeUserEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export async function getUserByEmail(email: string): Promise<PublicUser | null> {
-  const normalized = email.trim().toLowerCase();
-  const row = await queryOne("SELECT * FROM users WHERE email = ?", [normalized]);
+  const normalized = normalizeUserEmail(email);
+  const row = await queryOne("SELECT * FROM users WHERE LOWER(email) = ?", [normalized]);
   if (!row) return null;
   return rowToPublicUser(row as Record<string, unknown>);
 }
@@ -57,7 +61,7 @@ export async function getUserByEmail(email: string): Promise<PublicUser | null> 
 export async function createUser(input: SignupInput): Promise<PublicUser> {
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeUserEmail(input.email);
 
   if (!firstName) throw new Error("First name is required");
   if (!lastName) throw new Error("Last name is required");
@@ -89,7 +93,7 @@ export async function updateUserProfile(
 ): Promise<PublicUser> {
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeUserEmail(input.email);
 
   if (!firstName) throw new Error("First name is required");
   if (!lastName) throw new Error("Last name is required");

@@ -117,8 +117,12 @@ describe("MySQL migration", () => {
         email: "Migrate@Example.COM",
       });
 
-      const found = await getUserByEmail("migrate@example.com");
-      expect(found?.email).toBe("migrate@example.com");
+      expect((await getUserByEmail("migrate@example.com"))?.email).toBe(
+        "migrate@example.com"
+      );
+      expect((await getUserByEmail("MIGRATE@example.com"))?.email).toBe(
+        "migrate@example.com"
+      );
     });
 
     it("supports INSERT IGNORE for namespace membership", async () => {
