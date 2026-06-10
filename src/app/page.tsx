@@ -8,8 +8,8 @@ import { PUBLIC_NAMESPACE_SLUG } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const autoJoinNamespace = getAutoJoinNamespace();
+export default async function Home() {
+  const autoJoinNamespace = await getAutoJoinNamespace();
   const defaultHref = namespaceAppPath(PUBLIC_NAMESPACE_SLUG);
 
   return (

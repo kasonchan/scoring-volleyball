@@ -32,7 +32,7 @@ export async function PATCH(request: Request) {
           { status: 400 }
         );
       }
-      const verified = verifyAndConsumeEmailChangeToken(
+      const verified = await verifyAndConsumeEmailChangeToken(
         sessionUser.id,
         newEmail,
         body.emailVerificationToken
@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const user = updateUserProfile(sessionUser.id, body);
+    const user = await updateUserProfile(sessionUser.id, body);
     return NextResponse.json({ user });
   } catch (error) {
     return NextResponse.json(

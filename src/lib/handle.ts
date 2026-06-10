@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { queryOne } from "./db";
 
 const HANDLE_PATTERN = /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$/;
 
@@ -40,38 +40,46 @@ function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 6);
 }
 
-export function handleExists(handle: string, exceptUserId?: string): boolean {
-  const db = getDb();
+export async function handleExists(
+  handle: string,
+  exceptUserId?: string
+): Promise<boolean> {
   const row = exceptUserId
-    ? db.prepare("SELECT 1 FROM users WHERE handle = ? AND id != ?").get(handle, exceptUserId)
-    : db.prepare("SELECT 1 FROM users WHERE handle = ?").get(handle);
+    ? await queryOne("SELECT 1 AS ok FROM users WHERE handle = ? AND id != ? LIMIT 1", [
+        handle,
+        exceptUserId,
+      ])
+    : await queryOne("SELECT 1 AS ok FROM users WHERE handle = ? LIMIT 1", [handle]);
   return Boolean(row);
 }
 
-export function generateUniqueHandle(firstName: string, lastName: string): string {
+export async function generateUniqueHandle(
+  firstName: string,
+  lastName: string
+): Promise<string> {
   let candidate = buildBaseHandle(firstName, lastName);
   if (!isValidHandle(candidate)) {
     candidate = `user_${randomSuffix()}`;
   }
-  if (!handleExists(candidate)) return candidate;
+  if (!(await handleExists(candidate))) return candidate;
 
   for (let i = 2; i < 100; i++) {
     const suffix = `_${i}`;
     const trimmed = candidate.slice(0, 30 - suffix.length) + suffix;
-    if (!handleExists(trimmed)) return trimmed;
+    if (!(await handleExists(trimmed))) return trimmed;
   }
 
   return `${candidate.slice(0, 22)}_${randomSuffix()}`;
 }
 
-export function resolveSignupHandle(
+export async function resolveSignupHandle(
   firstName: string,
   lastName: string,
   optionalHandle?: string | null
-): { handle: string } | { error: string } {
+): Promise<{ handle: string } | { error: string }> {
   const trimmed = optionalHandle?.trim();
   if (!trimmed) {
-    return { handle: generateUniqueHandle(firstName, lastName) };
+    return { handle: await generateUniqueHandle(firstName, lastName) };
   }
   const handle = normalizeHandle(trimmed);
   if (!isValidHandle(handle)) {
@@ -80,16 +88,16 @@ export function resolveSignupHandle(
         "Handle must be 3–30 characters: lowercase letters, numbers, and underscores (not at start/end).",
     };
   }
-  if (handleExists(handle)) {
+  if (await handleExists(handle)) {
     return { error: "That handle is already taken." };
   }
   return { handle };
 }
 
-export function resolveProfileHandle(
+export async function resolveProfileHandle(
   userId: string,
   handleInput: string
-): { handle: string } | { error: string } {
+): Promise<{ handle: string } | { error: string }> {
   const handle = normalizeHandle(handleInput);
   if (!isValidHandle(handle)) {
     return {
@@ -97,14 +105,14 @@ export function resolveProfileHandle(
         "Handle must be 3–30 characters: lowercase letters, numbers, and underscores (not at start/end).",
     };
   }
-  const db = getDb();
-  const current = db
-    .prepare("SELECT handle FROM users WHERE id = ?")
-    .get(userId) as { handle: string } | undefined;
+  const current = await queryOne<{ handle: string }>(
+    "SELECT handle FROM users WHERE id = ?",
+    [userId]
+  );
   if (current && normalizeHandle(current.handle) === handle) {
     return { handle: current.handle };
   }
-  if (handleExists(handle, userId)) {
+  if (await handleExists(handle, userId)) {
     return { error: "That handle is already taken." };
   }
   return { handle };

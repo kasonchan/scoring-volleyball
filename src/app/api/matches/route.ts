@@ -11,7 +11,7 @@ import { CreateMatchInput } from "@/lib/types";
 export async function GET(request: Request) {
   const access = await resolveSpectatorMatchListAccess(request);
   if (isSpectatorViewError(access)) return access;
-  const matches = getAllMatches(access.ns.id).map((m) =>
+  const matches = (await getAllMatches(access.ns.id)).map((m) =>
     applySpectatorMatchView(m, access.redacted)
   );
   return NextResponse.json(matches);
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (!body.homeTeamId || !body.awayTeamId) {
       return NextResponse.json({ error: "Both teams are required" }, { status: 400 });
     }
-    const match = createMatch(ctxOrErr.ns.id, body);
+    const match = await createMatch(ctxOrErr.ns.id, body);
     return NextResponse.json(match, { status: 201 });
   } catch (error) {
     return NextResponse.json(

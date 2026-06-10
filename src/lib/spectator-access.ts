@@ -60,7 +60,7 @@ export async function resolveSpectatorMatchReadAccess(
 
   if (namespaceRequiresSpectatorLink(nsOrErr)) {
     const token = getSpectatorTokenFromRequest(request);
-    if (token && verifyMatchSpectatorToken(matchId, nsOrErr.id, token)) {
+    if (token && await verifyMatchSpectatorToken(matchId, nsOrErr.id, token)) {
       return { ns: nsOrErr, redacted: true };
     }
     const memberOrErr = await requireNamespaceMember(request);

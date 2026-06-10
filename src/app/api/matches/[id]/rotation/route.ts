@@ -12,7 +12,7 @@ export async function POST(
   try {
     const { matchId } = ctx;
     const body = (await request.json()) as SetRotationInput;
-    const match = setMatchRotation(matchId, body);
+    const match = await setMatchRotation(matchId, body);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(

@@ -41,7 +41,23 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Tech Stack
 
 - Next.js 16 (App Router)
-- SQLite via better-sqlite3
+- MySQL via mysql2 (connection pool)
 - Tailwind CSS
 
-Data is stored locally in `data/volleyball.db`.
+## Database
+
+Copy `.env.example` to `.env` and set MySQL connection variables. For production on a VPC (e.g. DigitalOcean App Platform + managed MySQL), point `MYSQL_HOST` at the **private** database hostname and enable TLS if required:
+
+```bash
+MYSQL_HOST=private-db-....db.ondigitalocean.com
+MYSQL_PORT=25060
+MYSQL_USER=doadmin
+MYSQL_PASSWORD=...
+MYSQL_DATABASE=volleyball
+MYSQL_SSL=true
+MYSQL_SSL_REJECT_UNAUTHORIZED=false
+```
+
+For stricter TLS verification, download the cluster CA from DigitalOcean and set `MYSQL_SSL_CA=path/to/ca-certificate.crt` with `MYSQL_SSL_REJECT_UNAUTHORIZED=true`.
+
+The schema is created automatically on first connection.

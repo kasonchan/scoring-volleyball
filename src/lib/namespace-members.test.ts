@@ -7,7 +7,7 @@ import {
   listNamespacesWithMembership,
   syncUserNamespaceMembership,
 } from "@/lib/namespace-members";
-import { getDb } from "@/lib/db";
+import { execute } from "@/lib/db";
 import { UNUSED_PASSWORD_HASH } from "@/lib/users";
 import { v4 as uuidv4 } from "uuid";
 import { filterNamespacesForPublicDirectory } from "@/lib/namespaces";
@@ -18,90 +18,90 @@ import { setupTestDatabase } from "@/test/test-db";
 describe("namespace-members", () => {
   setupTestDatabase();
 
-  it("auto-joins public on signup", () => {
-    const user = createUser({
+  it("auto-joins public on signup", async () => {
+    const user = await createUser({
       firstName: "Member",
       lastName: "Test",
       email: "member@example.com",
     });
-    const list = listNamespacesWithMembership(user.id);
+    const list = await listNamespacesWithMembership(user.id);
     const pub = list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG);
     expect(pub?.joined).toBe(true);
     const global = list.find((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG);
     expect(global?.joined).toBe(false);
   });
 
-  it("hides global and haikyu from public directory list", () => {
-    const user = createUser({
+  it("hides global and haikyu from public directory list", async () => {
+    const user = await createUser({
       firstName: "Dir",
       lastName: "Test",
       email: "dir@example.com",
     });
-    const list = listNamespacesWithMembership(user.id, { publicDirectory: true });
+    const list = await listNamespacesWithMembership(user.id, { publicDirectory: true });
     expect(list.some((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG)).toBe(false);
     expect(list.some((ns) => ns.slug === "haikyu")).toBe(false);
     expect(list.some((ns) => ns.slug === "public")).toBe(true);
   });
 
-  it("allows joining any namespace", () => {
-    const user = createUser({
+  it("allows joining any namespace", async () => {
+    const user = await createUser({
       firstName: "Join",
       lastName: "All",
       email: "joinall@example.com",
     });
-    const haikyu = getNamespaceBySlug("haikyu");
+    const haikyu = await getNamespaceBySlug("haikyu");
     expect(haikyu).toBeTruthy();
 
-    joinNamespace(user.id, "haikyu");
-    const list = listNamespacesWithMembership(user.id);
+    await joinNamespace(user.id, "haikyu");
+    const list = await listNamespacesWithMembership(user.id);
     expect(list.find((ns) => ns.slug === "haikyu")?.joined).toBe(true);
   });
 
-  it("includes the public namespace in full list", () => {
-    const list = listNamespacesWithMembership(null);
+  it("includes the public namespace in full list", async () => {
+    const list = await listNamespacesWithMembership(null);
     expect(list.some((ns) => ns.slug === "public" && ns.name === "Public")).toBe(true);
   });
 
-  it("joinAllNamespaces joins every namespace", () => {
-    const user = createUser({
+  it("joinAllNamespaces joins every namespace", async () => {
+    const user = await createUser({
       firstName: "Full",
       lastName: "Member",
       email: "full@example.com",
     });
-    joinAllNamespaces(user.id);
-    const list = listNamespacesWithMembership(user.id);
+    await joinAllNamespaces(user.id);
+    const list = await listNamespacesWithMembership(user.id);
     expect(list.every((ns) => ns.joined)).toBe(true);
   });
 
-  it("ensurePublicMembership is idempotent", () => {
-    const user = createUser({
+  it("ensurePublicMembership is idempotent", async () => {
+    const user = await createUser({
       firstName: "Public",
       lastName: "Twice",
       email: "public2@example.com",
     });
-    ensurePublicMembership(user.id);
-    ensurePublicMembership(user.id);
-    const list = listNamespacesWithMembership(user.id);
+    await ensurePublicMembership(user.id);
+    await ensurePublicMembership(user.id);
+    const list = await listNamespacesWithMembership(user.id);
     const pub = list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG);
     expect(pub?.joined).toBe(true);
   });
 
-  it("syncUserNamespaceMembership backfills public for existing users", () => {
-    const db = getDb();
+  it("syncUserNamespaceMembership backfills public for existing users", async () => {
     const userId = uuidv4();
-    db.prepare(
+    await execute(
       `INSERT INTO users (id, first_name, last_name, email, handle, password_hash)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(userId, "Legacy", "User", "legacy@example.com", "legacy_user", UNUSED_PASSWORD_HASH);
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, "Legacy", "User", "legacy@example.com", "legacy_user", UNUSED_PASSWORD_HASH]
+    );
 
-    syncUserNamespaceMembership(userId);
-    const list = listNamespacesWithMembership(userId);
+    await syncUserNamespaceMembership(userId);
+    const list = await listNamespacesWithMembership(userId);
     expect(list.find((ns) => ns.slug === AUTO_JOIN_NAMESPACE_SLUG)?.joined).toBe(true);
     expect(list.find((ns) => ns.slug === DEFAULT_NAMESPACE_SLUG)?.joined).toBe(false);
   });
 
-  it("filterNamespacesForPublicDirectory removes hidden slugs", () => {
-    const all = listNamespacesWithMembership(null);
+  it("filterNamespacesForPublicDirectory removes hidden slugs", async () => {
+    const all = await listNamespacesWithMembership(null);
     const visible = filterNamespacesForPublicDirectory(all);
     expect(visible.length).toBeLessThan(all.length);
     expect(visible.every((ns) => ns.slug !== DEFAULT_NAMESPACE_SLUG)).toBe(true);

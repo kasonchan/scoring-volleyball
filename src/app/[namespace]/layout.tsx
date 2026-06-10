@@ -9,7 +9,7 @@ export default async function NamespaceLayout({
   params: Promise<{ namespace: string }>;
 }) {
   const { namespace: slug } = await params;
-  const ns = getNamespaceBySlug(slug);
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) notFound();
   return children;
 }

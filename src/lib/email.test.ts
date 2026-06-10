@@ -1,31 +1,32 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const { sendMail, createTransport } = vi.hoisted(() => {
-  const sendMail = vi.fn();
-  const createTransport = vi.fn(() => ({ sendMail }));
-  return { sendMail, createTransport };
-});
-
-vi.mock("nodemailer", () => ({
-  default: { createTransport },
-}));
-
+import "@/test/mock-nodemailer";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createTransport, sendMail } from "@/test/mock-nodemailer";
 import { sendLoginTokenEmail, setTestEmailSink } from "@/lib/email";
 
+function clearSmtpEnv(): void {
+  delete process.env.EMAIL_FROM;
+  delete process.env.SMTP_USER;
+  delete process.env.SMTP_PASS;
+  delete process.env.SMTP_HOST;
+  delete process.env.SMTP_PORT;
+  delete process.env.SMTP_SECURE;
+  delete process.env.GMAIL_USER;
+  delete process.env.GMAIL_APP_PASSWORD;
+  delete process.env.SMTP_APP_PASSWORD;
+}
+
 describe("email", () => {
-  const envSnapshot = { ...process.env };
+  const initialNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     sendMail.mockReset();
     sendMail.mockResolvedValue({ messageId: "test-id" });
     createTransport.mockClear();
     setTestEmailSink(null);
-  });
-
-  afterEach(() => {
-    process.env = { ...envSnapshot };
-    setTestEmailSink(null);
-    vi.restoreAllMocks();
+    clearSmtpEnv();
+    delete process.env.APP_URL;
+    if (initialNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = initialNodeEnv;
   });
 
   it("delivers to testEmailSink without calling SMTP", async () => {
@@ -123,11 +124,6 @@ describe("email", () => {
   });
 
   it("logs token when SMTP is not configured", async () => {
-    delete process.env.EMAIL_FROM;
-    delete process.env.SMTP_USER;
-    delete process.env.SMTP_PASS;
-    delete process.env.GMAIL_USER;
-    delete process.env.GMAIL_APP_PASSWORD;
     process.env.NODE_ENV = "test";
 
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
@@ -140,9 +136,6 @@ describe("email", () => {
   });
 
   it("warns in production when SMTP is not configured", async () => {
-    delete process.env.EMAIL_FROM;
-    delete process.env.SMTP_USER;
-    delete process.env.SMTP_PASS;
     process.env.NODE_ENV = "production";
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

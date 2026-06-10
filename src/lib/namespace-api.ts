@@ -23,7 +23,7 @@ export async function resolveNamespaceFromRequest(
       { status: 400 }
     );
   }
-  const ns = getNamespaceBySlug(slug);
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) {
     return NextResponse.json({ error: "Namespace not found" }, { status: 404 });
   }
@@ -44,7 +44,7 @@ export async function resolveNamespaceAndMatch(
   if (isNamespaceError(nsOrErr)) return nsOrErr;
   const { id: matchId } = await params;
   try {
-    assertMatchInNamespace(matchId, nsOrErr.id);
+    await assertMatchInNamespace(matchId, nsOrErr.id);
     return { ns: nsOrErr, matchId };
   } catch {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });

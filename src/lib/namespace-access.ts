@@ -26,7 +26,7 @@ export async function requireNamespaceMember(
   if (!user) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
-  if (!isNamespaceMember(user.id, nsOrErr.id)) {
+  if (!await isNamespaceMember(user.id, nsOrErr.id)) {
     return NextResponse.json(
       { error: "Join this namespace to use admin, scorer, and referee tools" },
       { status: 403 }
@@ -53,7 +53,7 @@ export async function requireNamespaceMemberAndMatch(
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   const { id: matchId } = await params;
   try {
-    assertMatchInNamespace(matchId, ctxOrErr.ns.id);
+    await assertMatchInNamespace(matchId, ctxOrErr.ns.id);
     return { ...ctxOrErr, matchId };
   } catch {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
@@ -71,7 +71,7 @@ export async function requireJoinedNamespaceForPage(
   slug: string,
   section: "admin" | "scorer" | "referee"
 ): Promise<void> {
-  const ns = getNamespaceBySlug(slug);
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) redirect("/");
 
   const returnTo = namespaceAppPath(slug, section);
@@ -79,7 +79,7 @@ export async function requireJoinedNamespaceForPage(
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(returnTo)}`);
   }
-  if (!isNamespaceMember(user.id, ns.id)) {
+  if (!await isNamespaceMember(user.id, ns.id)) {
     const joinUrl = `/${slug}?join=1&next=${encodeURIComponent(returnTo)}`;
     redirect(joinUrl);
   }

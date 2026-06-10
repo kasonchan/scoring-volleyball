@@ -15,7 +15,7 @@ export async function POST(
     if (!body.team || !body.position || !body.playerInId) {
       return NextResponse.json({ error: "Team, position, and substitute player are required" }, { status: 400 });
     }
-    const match = substitutePlayer(matchId, body);
+    const match = await substitutePlayer(matchId, body);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(

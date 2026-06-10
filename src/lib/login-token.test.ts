@@ -24,17 +24,17 @@ describe("login-token", () => {
     });
   });
 
-  it("generates tokens in XXXX-XXXX format", () => {
+  it("generates tokens in XXXX-XXXX format", async () => {
     const token = generateLoginToken();
     expect(token).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
   });
 
-  it("normalizes token input", () => {
+  it("normalizes token input", async () => {
     expect(normalizeLoginTokenInput(" abcd-efgh ")).toBe("ABCD-EFGH");
   });
 
   it("issues and verifies a signup token once", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Token",
       lastName: "User",
       email: "token@example.com",
@@ -42,14 +42,14 @@ describe("login-token", () => {
     await issueLoginToken(user.email, user.id, "signup");
     expect(lastEmail?.token).toBeTruthy();
 
-    const loggedIn = verifyAndConsumeLoginToken(user.email, lastEmail!.token);
+    const loggedIn = await verifyAndConsumeLoginToken(user.email, lastEmail!.token);
     expect(loggedIn?.email).toBe("token@example.com");
 
-    expect(verifyAndConsumeLoginToken(user.email, lastEmail!.token)).toBeNull();
+    expect(await verifyAndConsumeLoginToken(user.email, lastEmail!.token)).toBeNull();
   });
 
   it("requestLoginTokenForEmail sends token for existing user", async () => {
-    createUser({
+    await createUser({
       firstName: "Req",
       lastName: "User",
       email: "req@example.com",
@@ -66,7 +66,7 @@ describe("login-token", () => {
   });
 
   it("issueEmailChangeToken sends to new email and verifies once", async () => {
-    const user = createUser({
+    const user = await createUser({
       firstName: "Change",
       lastName: "Email",
       email: "old@example.com",
@@ -76,10 +76,10 @@ describe("login-token", () => {
     expect(lastEmail?.purpose).toBe("email_change");
 
     expect(
-      verifyAndConsumeEmailChangeToken(user.id, "new@example.com", lastEmail!.token)
+      await verifyAndConsumeEmailChangeToken(user.id, "new@example.com", lastEmail!.token)
     ).toBe(true);
     expect(
-      verifyAndConsumeEmailChangeToken(user.id, "new@example.com", lastEmail!.token)
+      await verifyAndConsumeEmailChangeToken(user.id, "new@example.com", lastEmail!.token)
     ).toBe(false);
   });
 });

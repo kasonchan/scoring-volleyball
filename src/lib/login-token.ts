@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { getDb } from "./db";
+import { execute, queryOne } from "./db";
+import { toMysqlDatetime } from "./mysql-datetime";
 import { getUserByEmail, PublicUser } from "./users";
 import { sendLoginTokenEmail } from "./email";
 
@@ -37,51 +38,52 @@ export async function issueLoginToken(
   userId: string,
   purpose: LoginTokenPurpose
 ): Promise<string> {
-  const db = getDb();
   const normalizedEmail = email.trim().toLowerCase();
   const token = generateLoginToken();
   const tokenHash = hashToken(normalizeLoginTokenInput(token));
-  const expiresAt = new Date(Date.now() + LOGIN_TOKEN_EXPIRY_MINUTES * 60 * 1000).toISOString();
+  const expiresAt = toMysqlDatetime(
+    new Date(Date.now() + LOGIN_TOKEN_EXPIRY_MINUTES * 60 * 1000)
+  );
 
-  db.prepare(
-    `UPDATE login_tokens SET used_at = datetime('now')
-     WHERE user_id = ? AND purpose = ? AND used_at IS NULL AND expires_at > datetime('now')`
-  ).run(userId, purpose);
+  await execute(
+    `UPDATE login_tokens SET used_at = UTC_TIMESTAMP(3)
+     WHERE user_id = ? AND purpose = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP(3)`,
+    [userId, purpose]
+  );
 
-  db.prepare(
+  await execute(
     `INSERT INTO login_tokens (id, email, user_id, token_hash, purpose, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(uuidv4(), normalizedEmail, userId, tokenHash, purpose, expiresAt);
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [uuidv4(), normalizedEmail, userId, tokenHash, purpose, expiresAt]
+  );
 
   await sendLoginTokenEmail(normalizedEmail, token, purpose);
   return token;
 }
 
-export function verifyAndConsumeLoginToken(
+export async function verifyAndConsumeLoginToken(
   email: string,
   tokenInput: string
-): PublicUser | null {
+): Promise<PublicUser | null> {
   const normalizedToken = normalizeLoginTokenInput(tokenInput);
   if (!isTokenFormatValid(normalizedToken)) return null;
 
-  const user = getUserByEmail(email);
+  const user = await getUserByEmail(email);
   if (!user) return null;
 
-  const db = getDb();
   const tokenHash = hashToken(normalizedToken);
-  const row = db
-    .prepare(
-      `SELECT id FROM login_tokens
-       WHERE user_id = ? AND token_hash = ? AND purpose IN ('signup', 'login')
-         AND used_at IS NULL AND expires_at > datetime('now')
-       ORDER BY created_at DESC
-       LIMIT 1`
-    )
-    .get(user.id, tokenHash) as { id: string } | undefined;
+  const row = await queryOne<{ id: string }>(
+    `SELECT id FROM login_tokens
+     WHERE user_id = ? AND token_hash = ? AND purpose IN ('signup', 'login')
+       AND used_at IS NULL AND expires_at > UTC_TIMESTAMP(3)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [user.id, tokenHash]
+  );
 
   if (!row) return null;
 
-  db.prepare("UPDATE login_tokens SET used_at = datetime('now') WHERE id = ?").run(row.id);
+  await execute("UPDATE login_tokens SET used_at = UTC_TIMESTAMP(3) WHERE id = ?", [row.id]);
   return user;
 }
 
@@ -92,7 +94,7 @@ export async function requestLoginTokenForEmail(email: string): Promise<boolean>
     throw new Error("Invalid email address");
   }
 
-  const user = getUserByEmail(normalizedEmail);
+  const user = await getUserByEmail(normalizedEmail);
   if (!user) return false;
 
   await issueLoginToken(normalizedEmail, user.id, "login");
@@ -113,47 +115,46 @@ export async function issueEmailChangeToken(
     throw new Error("Invalid email address");
   }
 
-  const db = getDb();
-  const current = db.prepare("SELECT email FROM users WHERE id = ?").get(userId) as
-    | { email: string }
-    | undefined;
+  const current = await queryOne<{ email: string }>(
+    "SELECT email FROM users WHERE id = ?",
+    [userId]
+  );
   if (!current) throw new Error("User not found");
   if (normalizeEmail(current.email) === normalizedNew) {
     throw new Error("New email must be different from your current email");
   }
 
-  const taken = db
-    .prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?")
-    .get(normalizedNew, userId) as { id: string } | undefined;
+  const taken = await queryOne(
+    "SELECT id FROM users WHERE LOWER(email) = ? AND id != ?",
+    [normalizedNew, userId]
+  );
   if (taken) throw new Error("An account with this email already exists");
 
   await issueLoginToken(normalizedNew, userId, "email_change");
 }
 
-export function verifyAndConsumeEmailChangeToken(
+export async function verifyAndConsumeEmailChangeToken(
   userId: string,
   newEmail: string,
   tokenInput: string
-): boolean {
+): Promise<boolean> {
   const normalizedToken = normalizeLoginTokenInput(tokenInput);
   if (!isTokenFormatValid(normalizedToken)) return false;
 
   const normalizedNew = normalizeEmail(newEmail);
-  const db = getDb();
   const tokenHash = hashToken(normalizedToken);
-  const row = db
-    .prepare(
-      `SELECT id FROM login_tokens
-       WHERE user_id = ? AND email = ? COLLATE NOCASE AND token_hash = ?
-         AND purpose = 'email_change' AND used_at IS NULL
-         AND expires_at > datetime('now')
-       ORDER BY created_at DESC
-       LIMIT 1`
-    )
-    .get(userId, normalizedNew, tokenHash) as { id: string } | undefined;
+  const row = await queryOne<{ id: string }>(
+    `SELECT id FROM login_tokens
+     WHERE user_id = ? AND LOWER(email) = ? AND token_hash = ?
+       AND purpose = 'email_change' AND used_at IS NULL
+       AND expires_at > UTC_TIMESTAMP(3)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId, normalizedNew, tokenHash]
+  );
 
   if (!row) return false;
 
-  db.prepare("UPDATE login_tokens SET used_at = datetime('now') WHERE id = ?").run(row.id);
+  await execute("UPDATE login_tokens SET used_at = UTC_TIMESTAMP(3) WHERE id = ?", [row.id]);
   return true;
 }

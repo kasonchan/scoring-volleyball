@@ -10,7 +10,7 @@ export async function POST(
   if (isMemberMatchContextError(ctx)) return ctx;
   try {
     const { matchId } = ctx;
-    const match = startNextSet(matchId);
+    const match = await startNextSet(matchId);
     return NextResponse.json(match);
   } catch (error) {
     return NextResponse.json(

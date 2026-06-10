@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { query, queryOne } from "./db";
 import {
   AUTO_JOIN_NAMESPACE_SLUG,
   DEFAULT_NAMESPACE_SLUG,
@@ -49,15 +49,13 @@ export function namespaceRequiresSpectatorLink(ns: Namespace): boolean {
   return ns.spectatorAccess === "link";
 }
 
-export function getAllNamespaces(): Namespace[] {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT * FROM namespaces
-       ORDER BY CASE WHEN slug = ? THEN 0 ELSE 1 END, name`
-    )
-    .all(DEFAULT_NAMESPACE_SLUG) as Record<string, unknown>[];
-  return rows.map(namespaceFromRow);
+export async function getAllNamespaces(): Promise<Namespace[]> {
+  const rows = await query(
+    `SELECT * FROM namespaces
+     ORDER BY CASE WHEN slug = ? THEN 0 ELSE 1 END, name`,
+    [DEFAULT_NAMESPACE_SLUG]
+  );
+  return rows.map((row) => namespaceFromRow(row as Record<string, unknown>));
 }
 
 /** Hidden from the public home namespace directory (still reachable by direct URL). */
@@ -72,36 +70,30 @@ export function filterNamespacesForPublicDirectory<T extends { slug: string }>(
 }
 
 /** Namespaces shown on the marketing home page. */
-export function getNamespacesForHomepage(): Namespace[] {
-  return filterNamespacesForPublicDirectory(getAllNamespaces());
+export async function getNamespacesForHomepage(): Promise<Namespace[]> {
+  return filterNamespacesForPublicDirectory(await getAllNamespaces());
 }
 
-export function getDefaultNamespace(): Namespace | null {
-  return getNamespaceBySlug(DEFAULT_NAMESPACE_SLUG);
+export async function getDefaultNamespace(): Promise<Namespace | null> {
+  return await getNamespaceBySlug(DEFAULT_NAMESPACE_SLUG);
 }
 
-export function getAutoJoinNamespace(): Namespace | null {
-  return getNamespaceBySlug(AUTO_JOIN_NAMESPACE_SLUG);
+export async function getAutoJoinNamespace(): Promise<Namespace | null> {
+  return await getNamespaceBySlug(AUTO_JOIN_NAMESPACE_SLUG);
 }
 
-export function getNamespaceBySlug(slug: string): Namespace | null {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT * FROM namespaces WHERE slug = ?")
-    .get(slug) as Record<string, unknown> | undefined;
-  return row ? namespaceFromRow(row) : null;
+export async function getNamespaceBySlug(slug: string): Promise<Namespace | null> {
+  const row = await queryOne("SELECT * FROM namespaces WHERE slug = ?", [slug]);
+  return row ? namespaceFromRow(row as Record<string, unknown>) : null;
 }
 
-export function getNamespaceById(id: string): Namespace | null {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT * FROM namespaces WHERE id = ?")
-    .get(id) as Record<string, unknown> | undefined;
-  return row ? namespaceFromRow(row) : null;
+export async function getNamespaceById(id: string): Promise<Namespace | null> {
+  const row = await queryOne("SELECT * FROM namespaces WHERE id = ?", [id]);
+  return row ? namespaceFromRow(row as Record<string, unknown>) : null;
 }
 
-export function requireNamespaceBySlug(slug: string): Namespace {
-  const ns = getNamespaceBySlug(slug);
+export async function requireNamespaceBySlug(slug: string): Promise<Namespace> {
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) throw new Error("Namespace not found");
   return ns;
 }

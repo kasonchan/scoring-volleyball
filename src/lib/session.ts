@@ -72,7 +72,7 @@ export async function getSessionUser(): Promise<PublicUser | null> {
   if (!token) return null;
   const session = verifySessionToken(token);
   if (!session) return null;
-  const user = getUserById(session.userId);
-  if (user) syncUserNamespaceMembership(user.id);
+  const user = await getUserById(session.userId);
+  if (user) await syncUserNamespaceMembership(user.id);
   return user;
 }

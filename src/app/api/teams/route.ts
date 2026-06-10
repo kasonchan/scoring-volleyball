@@ -6,7 +6,7 @@ import { CreateTeamInput } from "@/lib/types";
 export async function GET(request: Request) {
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
-  const teams = getAllTeams(ctxOrErr.ns.id);
+  const teams = await getAllTeams(ctxOrErr.ns.id);
   return NextResponse.json(teams);
 }
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     if (!body.players?.length) {
       return NextResponse.json({ error: "At least one player is required" }, { status: 400 });
     }
-    const team = createTeam(ctxOrErr.ns.id, body);
+    const team = await createTeam(ctxOrErr.ns.id, body);
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
     return NextResponse.json(

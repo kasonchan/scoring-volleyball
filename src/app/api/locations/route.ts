@@ -6,7 +6,7 @@ import { LocationInput } from "@/lib/types";
 export async function GET(request: Request) {
   const ctxOrErr = await requireNamespaceMember(request);
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
-  const locations = getAllLocations(ctxOrErr.ns.id);
+  const locations = await getAllLocations(ctxOrErr.ns.id);
   return NextResponse.json(locations);
 }
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (isMemberContextError(ctxOrErr)) return ctxOrErr;
   try {
     const body = (await request.json()) as LocationInput;
-    const location = createLocation(ctxOrErr.ns.id, body);
+    const location = await createLocation(ctxOrErr.ns.id, body);
     return NextResponse.json(location, { status: 201 });
   } catch (error) {
     return NextResponse.json(

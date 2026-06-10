@@ -14,8 +14,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Namespace slug is required" }, { status: 400 });
     }
 
-    joinNamespace(user.id, body.slug.trim());
-    const namespaces = listNamespacesWithMembership(user.id, { publicDirectory: true });
+    await joinNamespace(user.id, body.slug.trim());
+    const namespaces = await listNamespacesWithMembership(user.id, { publicDirectory: true });
     return NextResponse.json({ namespaces });
   } catch (error) {
     return NextResponse.json(

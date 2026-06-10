@@ -20,8 +20,8 @@ export async function GET(
 
   try {
     const { id: matchId } = await params;
-    assertMatchInNamespace(matchId, ctxOrErr.ns.id);
-    const token = ensureMatchSpectatorToken(matchId, ctxOrErr.ns.id);
+    await assertMatchInNamespace(matchId, ctxOrErr.ns.id);
+    const token = await ensureMatchSpectatorToken(matchId, ctxOrErr.ns.id);
     const path = `${namespaceAppPath(ctxOrErr.ns.slug, `spectator/${matchId}`)}?t=${encodeURIComponent(token)}`;
     const url = `${appOrigin()}${path}`;
 

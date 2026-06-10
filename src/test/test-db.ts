@@ -1,24 +1,13 @@
-import fs from "fs";
-import os from "os";
-import path from "path";
-import { afterEach, beforeEach } from "vitest";
-import { closeDb, getDb, setDbPathForTests } from "@/lib/db";
+import { beforeEach } from "vitest";
+import { resetTestDatabase } from "@/lib/db";
 
+let resetChain: Promise<void> = Promise.resolve();
+
+/** Reset MySQL between tests. Serializes resets when hooks overlap. */
 export function setupTestDatabase(): void {
-  let dbPath = "";
-
-  beforeEach(() => {
-    dbPath = path.join(
-      os.tmpdir(),
-      `volleyball-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
-    );
-    setDbPathForTests(dbPath);
-    getDb();
-  });
-
-  afterEach(() => {
-    closeDb();
-    setDbPathForTests(null);
-    if (dbPath && fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+  beforeEach(async () => {
+    const run = resetChain.then(() => resetTestDatabase());
+    resetChain = run;
+    await run;
   });
 }

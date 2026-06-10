@@ -8,7 +8,7 @@ export async function POST() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  joinAllNamespaces(user.id);
-  const namespaces = listNamespacesWithMembership(user.id, { publicDirectory: true });
+  await joinAllNamespaces(user.id);
+  const namespaces = await listNamespacesWithMembership(user.id, { publicDirectory: true });
   return NextResponse.json({ namespaces });
 }

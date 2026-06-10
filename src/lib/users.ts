@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { getDb, usersTableHasColumn } from "./db";
+import { execute, queryOne } from "./db";
 import { resolveProfileHandle, resolveSignupHandle } from "./handle";
 import { ensurePublicMembership } from "./namespace-members";
 
@@ -42,102 +42,79 @@ function rowToPublicUser(row: Record<string, unknown>): PublicUser {
   };
 }
 
-export function getUserById(id: string): PublicUser | null {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as
-    | Record<string, unknown>
-    | undefined;
-  return row ? rowToPublicUser(row) : null;
+export async function getUserById(id: string): Promise<PublicUser | null> {
+  const row = await queryOne("SELECT * FROM users WHERE id = ?", [id]);
+  return row ? rowToPublicUser(row as Record<string, unknown>) : null;
 }
 
-export function getUserByEmail(email: string): PublicUser | null {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT * FROM users WHERE email = ? COLLATE NOCASE")
-    .get(email.trim().toLowerCase()) as Record<string, unknown> | undefined;
-  return row ? rowToPublicUser(row) : null;
+export function normalizeUserEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
-export function createUser(input: SignupInput): PublicUser {
+export async function getUserByEmail(email: string): Promise<PublicUser | null> {
+  const normalized = normalizeUserEmail(email);
+  const row = await queryOne("SELECT * FROM users WHERE LOWER(email) = ?", [normalized]);
+  if (!row) return null;
+  return rowToPublicUser(row as Record<string, unknown>);
+}
+
+export async function createUser(input: SignupInput): Promise<PublicUser> {
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeUserEmail(input.email);
 
   if (!firstName) throw new Error("First name is required");
   if (!lastName) throw new Error("Last name is required");
   if (!email) throw new Error("Email is required");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address");
 
-  const db = getDb();
-  const existing = db
-    .prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
-    .get(email) as { id: string } | undefined;
+  const existing = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
   if (existing) throw new Error("An account with this email already exists");
 
-  const handleResult = resolveSignupHandle(firstName, lastName, input.handle);
+  const handleResult = await resolveSignupHandle(firstName, lastName, input.handle);
   if ("error" in handleResult) throw new Error(handleResult.error);
 
   const id = uuidv4();
-  const displayName = `${firstName} ${lastName}`.trim();
+  await execute(
+    `INSERT INTO users (id, first_name, last_name, email, handle, password_hash)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, firstName, lastName, email, handleResult.handle, UNUSED_PASSWORD_HASH]
+  );
 
-  if (usersTableHasColumn("name")) {
-    db.prepare(
-      `INSERT INTO users (id, first_name, last_name, email, handle, password_hash, name)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      id,
-      firstName,
-      lastName,
-      email,
-      handleResult.handle,
-      UNUSED_PASSWORD_HASH,
-      displayName
-    );
-  } else {
-    db.prepare(
-      `INSERT INTO users (id, first_name, last_name, email, handle, password_hash)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(id, firstName, lastName, email, handleResult.handle, UNUSED_PASSWORD_HASH);
-  }
-
-  const user = getUserById(id);
+  const user = await getUserById(id);
   if (!user) throw new Error("Failed to create user");
-  ensurePublicMembership(user.id);
+  await ensurePublicMembership(user.id);
   return user;
 }
 
-export function updateUserProfile(userId: string, input: UpdateProfileInput): PublicUser {
+export async function updateUserProfile(
+  userId: string,
+  input: UpdateProfileInput
+): Promise<PublicUser> {
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeUserEmail(input.email);
 
   if (!firstName) throw new Error("First name is required");
   if (!lastName) throw new Error("Last name is required");
   if (!email) throw new Error("Email is required");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address");
 
-  const handleResult = resolveProfileHandle(userId, input.handle);
+  const handleResult = await resolveProfileHandle(userId, input.handle);
   if ("error" in handleResult) throw new Error(handleResult.error);
 
-  const db = getDb();
-  const emailTaken = db
-    .prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?")
-    .get(email, userId) as { id: string } | undefined;
+  const emailTaken = await queryOne(
+    "SELECT id FROM users WHERE email = ? AND id != ?",
+    [email, userId]
+  );
   if (emailTaken) throw new Error("An account with this email already exists");
 
-  const displayName = `${firstName} ${lastName}`.trim();
+  await execute(
+    `UPDATE users SET first_name = ?, last_name = ?, email = ?, handle = ? WHERE id = ?`,
+    [firstName, lastName, email, handleResult.handle, userId]
+  );
 
-  if (usersTableHasColumn("name")) {
-    db.prepare(
-      `UPDATE users SET first_name = ?, last_name = ?, email = ?, handle = ?, name = ? WHERE id = ?`
-    ).run(firstName, lastName, email, handleResult.handle, displayName, userId);
-  } else {
-    db.prepare(
-      `UPDATE users SET first_name = ?, last_name = ?, email = ?, handle = ? WHERE id = ?`
-    ).run(firstName, lastName, email, handleResult.handle, userId);
-  }
-
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
   if (!user) throw new Error("Failed to update profile");
   return user;
 }

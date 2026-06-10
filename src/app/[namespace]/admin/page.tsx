@@ -10,7 +10,7 @@ export default async function AdminPage({
   params: Promise<{ namespace: string }>;
 }) {
   const { namespace: slug } = await params;
-  const ns = getNamespaceBySlug(slug);
+  const ns = await getNamespaceBySlug(slug);
   if (!ns) return null;
   const base = namespaceAppPath(slug);
 

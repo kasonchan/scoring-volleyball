@@ -1,3 +1,5 @@
+import { toMysqlDatetime } from "./mysql-datetime";
+
 /** Who may read match data without signing in. */
 export type SpectatorAccess = "public" | "members" | "link";
 
@@ -287,5 +289,5 @@ export function fromDatetimeLocalValue(value: string): string | null {
   if (!value.trim()) return null;
   const d = new Date(value);
   if (isNaN(d.getTime())) return null;
-  return d.toISOString();
+  return toMysqlDatetime(d);
 }
