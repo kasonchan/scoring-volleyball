@@ -1,28 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { AuthField, AuthForm } from "@/components/AuthForm";
 import { TurnstileChallenge } from "@/components/TurnstileChallenge";
 import { Card } from "@/components/ui";
-
-type SignupConfig = {
-  turnstileSiteKey: string | null;
-  inviteRequired: boolean;
-};
+import { useSignupConfig } from "@/hooks/use-signup-config";
 
 export default function SignupPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const [config, setConfig] = useState<SignupConfig | null>(null);
+  const config = useSignupConfig();
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/signup/config")
-      .then((r) => r.json())
-      .then((data: SignupConfig) => setConfig(data))
-      .catch(() => setConfig({ turnstileSiteKey: null, inviteRequired: false }));
-  }, []);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     const form = new FormData(e.currentTarget);
@@ -70,6 +59,19 @@ export default function SignupPage() {
         ) : loadingConfig ? (
           <Card>
             <p className="text-slate-600">Loading sign up…</p>
+          </Card>
+        ) : config.enabled === false ? (
+          <Card>
+            <h1 className="text-2xl font-bold text-slate-900">Sign up closed</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              New account registration is not available right now. If you already have an account,
+              log in with your email and a one-time token.
+            </p>
+            <p className="mt-6 text-center text-sm text-slate-600">
+              <Link href="/login" className="font-medium text-orange-600 hover:underline">
+                Go to log in
+              </Link>
+            </p>
           </Card>
         ) : (
           <AuthForm

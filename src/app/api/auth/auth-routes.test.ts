@@ -430,4 +430,25 @@ describe("auth API routes", () => {
     const { getUserByEmail } = await import("@/lib/users");
     expect(await getUserByEmail("honeypot@example.com")).toBeNull();
   });
+
+  it("POST /api/auth/signup returns 403 when SIGNUP_DISABLED is set", async () => {
+    const previous = process.env.SIGNUP_DISABLED;
+    process.env.SIGNUP_DISABLED = "true";
+    try {
+      const { POST } = await import("@/app/api/auth/signup/route");
+      const res = await POST(
+        authPost("/api/auth/signup", {
+          firstName: "Closed",
+          lastName: "Signup",
+          email: "closed@example.com",
+        })
+      );
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toMatch(/disabled/i);
+    } finally {
+      if (previous === undefined) delete process.env.SIGNUP_DISABLED;
+      else process.env.SIGNUP_DISABLED = previous;
+    }
+  });
 });
