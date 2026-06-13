@@ -451,4 +451,18 @@ describe("auth API routes", () => {
       else process.env.SIGNUP_DISABLED = previous;
     }
   });
+
+  it("POST /api/auth/login authenticates seeded user with password", async () => {
+    const { POST } = await import("@/app/api/auth/login/route");
+    const res = await POST(
+      authPost("/api/auth/login", {
+        username: "scorer",
+        password: "scorer",
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.user.handle).toBe("scorer");
+    expect(cookieSet).toHaveBeenCalled();
+  });
 });

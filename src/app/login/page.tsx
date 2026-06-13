@@ -34,6 +34,7 @@ function LoginPageContent() {
   const signupConfig = useSignupConfig();
   const [tokenSent, setTokenSent] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [sending, setSending] = useState(false);
 
   async function onSendToken(e: FormEvent<HTMLFormElement>) {
@@ -80,6 +81,61 @@ function LoginPageContent() {
     <>
       <Nav />
       <main className="mx-auto max-w-md flex-1 space-y-6 px-4 py-12">
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-900">Log in with username</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Use a seeded account (admin, scorer, referee1, referee2) and its password.
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setPasswordError("");
+              const form = new FormData(e.currentTarget);
+              try {
+                const res = await fetch("/api/auth/login", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    username: form.get("username"),
+                    password: form.get("password"),
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error ?? "Login failed");
+                if (data.user) setUser(data.user);
+                const destination =
+                  nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
+                    ? nextPath
+                    : "/";
+                router.push(destination);
+                router.refresh();
+              } catch (err) {
+                setPasswordError(err instanceof Error ? err.message : "Login failed");
+              }
+            }}
+            className="mt-4 space-y-3"
+          >
+            <AuthField
+              label="Username"
+              name="username"
+              required
+              autoComplete="username"
+              placeholder="e.g. admin"
+            />
+            <AuthField
+              label="Password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+            />
+            {passwordError ? <p className="text-sm text-red-600">{passwordError}</p> : null}
+            <Button type="submit" className="w-full">
+              Log in
+            </Button>
+          </form>
+        </Card>
+
         <Card>
           <h2 className="text-lg font-semibold text-slate-900">1. Get a login token</h2>
           <p className="mt-1 text-sm text-slate-600">

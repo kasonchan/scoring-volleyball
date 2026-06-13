@@ -14,6 +14,7 @@ import {
   MYSQL_SCHEMA_STATEMENTS,
   MYSQL_TRUNCATE_TABLES,
 } from "./mysql-schema";
+import { seedUsers } from "./seed-users";
 
 const DEFAULT_NAMESPACE_NAME = "Global";
 const DEFAULT_NAMESPACE_DESCRIPTION =
@@ -111,6 +112,7 @@ export async function resetTestDatabase(): Promise<void> {
   }
   await p.execute("SET FOREIGN_KEY_CHECKS = 1");
   await seedNamespaces(p);
+  await seedUsers(p);
 }
 
 async function initSchema(p: Pool): Promise<void> {
@@ -118,6 +120,7 @@ async function initSchema(p: Pool): Promise<void> {
     await p.execute(statement);
   }
   await seedNamespaces(p);
+  await seedUsers(p);
 }
 
 async function ensureNamespace(
