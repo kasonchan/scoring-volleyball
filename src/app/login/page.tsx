@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { Nav } from "@/components/Nav";
 import { AuthField, AuthForm } from "@/components/AuthForm";
 import { Button, Card } from "@/components/ui";
+import { useSignupConfig } from "@/hooks/use-signup-config";
 
 export default function LoginPage() {
   return (
@@ -30,6 +31,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
   const { setUser } = useAuth();
+  const signupConfig = useSignupConfig();
   const [tokenSent, setTokenSent] = useState(false);
   const [sendError, setSendError] = useState("");
   const [sending, setSending] = useState(false);
@@ -103,12 +105,16 @@ function LoginPageContent() {
           submitLabel="Log in"
           onSubmit={onLogin}
           footer={
-            <>
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="font-medium text-orange-600 hover:underline">
-                Sign up
-              </Link>
-            </>
+            signupConfig?.enabled === false ? (
+              <>New sign ups are currently disabled.</>
+            ) : (
+              <>
+                Don&apos;t have an account?{" "}
+                <Link href="/signup" className="font-medium text-orange-600 hover:underline">
+                  Sign up
+                </Link>
+              </>
+            )
           }
         >
           <AuthField label="Email" name="email" type="email" required autoComplete="email" />

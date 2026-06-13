@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { LogoutButton } from "@/components/LogoutButton";
+import { useSignupConfig } from "@/hooks/use-signup-config";
 
 export function AuthNav() {
   const { user } = useAuth();
+  const signupConfig = useSignupConfig();
 
   if (user === undefined) {
     return <div className="w-20 border-l border-slate-200 pl-2 ml-2" aria-hidden />;
@@ -20,12 +22,14 @@ export function AuthNav() {
         >
           Log in
         </Link>
-        <Link
-          href="/signup"
-          className="rounded-lg px-3 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600"
-        >
-          Sign up
-        </Link>
+        {signupConfig?.enabled !== false ? (
+          <Link
+            href="/signup"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600"
+          >
+            Sign up
+          </Link>
+        ) : null}
       </div>
     );
   }

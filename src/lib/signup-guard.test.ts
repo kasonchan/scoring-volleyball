@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertSignupEmailAllowed,
   assertSignupInviteCode,
+  getSignupConfig,
+  isSignupDisabled,
   isSignupHoneypotTriggered,
 } from "@/lib/signup-guard";
 
@@ -32,5 +34,11 @@ describe("signup-guard", () => {
   it("detects honeypot submissions", () => {
     expect(isSignupHoneypotTriggered("")).toBe(false);
     expect(isSignupHoneypotTriggered("https://spam.example")).toBe(true);
+  });
+
+  it("reports signup disabled when SIGNUP_DISABLED is set", () => {
+    process.env.SIGNUP_DISABLED = "true";
+    expect(isSignupDisabled()).toBe(true);
+    expect(getSignupConfig().enabled).toBe(false);
   });
 });

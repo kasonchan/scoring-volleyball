@@ -16,15 +16,28 @@ const BLOCKED_EMAIL_DOMAINS = new Set([
 ]);
 
 export type SignupConfig = {
+  enabled: boolean;
   turnstileSiteKey: string | null;
   inviteRequired: boolean;
 };
 
+export function isSignupDisabled(): boolean {
+  const value = (process.env.SIGNUP_DISABLED ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
 export function getSignupConfig(): SignupConfig {
   return {
+    enabled: !isSignupDisabled(),
     turnstileSiteKey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null,
     inviteRequired: Boolean(process.env.SIGNUP_INVITE_CODES?.trim()),
   };
+}
+
+export function assertSignupEnabled(): void {
+  if (isSignupDisabled()) {
+    throw new Error("Sign up is currently disabled");
+  }
 }
 
 function getAllowedEmailDomains(): Set<string> | null {

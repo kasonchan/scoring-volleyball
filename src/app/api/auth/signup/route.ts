@@ -4,6 +4,7 @@ import { issueLoginToken } from "@/lib/login-token";
 import {
   assertSignupEmailAllowed,
   assertSignupInviteCode,
+  isSignupDisabled,
   isSignupHoneypotTriggered,
   verifySignupTurnstile,
 } from "@/lib/signup-guard";
@@ -21,6 +22,13 @@ const SIGNUP_OK_MESSAGE =
 
 export async function POST(request: Request) {
   try {
+    if (isSignupDisabled()) {
+      return NextResponse.json(
+        { error: "Sign up is currently disabled" },
+        { status: 403 }
+      );
+    }
+
     const body = (await request.json()) as SignupRequestBody;
 
     if (isSignupHoneypotTriggered(body.website)) {
